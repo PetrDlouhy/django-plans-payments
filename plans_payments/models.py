@@ -1,5 +1,4 @@
 from django.db import models
-from django.contrib.sites.shortcuts import get_current_site
 from django.urls import reverse
 
 from payments import PurchasedItem
@@ -21,7 +20,6 @@ class Payment(BasePayment):
         return reverse('order_payment_success', kwargs={'pk': self.order.pk})
 
     def get_purchased_items(self):
-        # you'll probably want to retrieve these from an associated order
         yield PurchasedItem(
             name=self.order.__str__(),
             sku='BSKV',
@@ -30,3 +28,8 @@ class Payment(BasePayment):
             currency=self.order.currency,
             # tax=self.order.tax,
         )
+
+    def save(self, *args, **kwargs):
+        if self.status == 'confirmed':
+            self.order.complete_order()
+        super().save(*args, **kwargs)
