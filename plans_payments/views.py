@@ -39,11 +39,3 @@ def create_payment(request, payment_variant, order_id):
         # billing_country_area=settings.PLANS_INVOICE_ISSUER['issuer_name'],
         customer_ip_address='127.0.0.1')
     return redirect(reverse('payment_details', kwargs={'payment_id': payment.id}))
-
-
-class SuccessView(TemplateView):
-    template_name = "plans_payments/success.html"
-
-
-class FailureView(TemplateView):
-    template_name = "plans_payments/failure.html"

@@ -21,17 +21,20 @@ The full documentation is at https://django-plans-payments.readthedocs.io.
 Quickstart
 ----------
 
+Install django-plans and django-payments apps.
+
 Install Django plans payments::
 
     pip install django-plans-payments
 
-Add it to your `INSTALLED_APPS`:
+Add it to your `INSTALLED_APPS`, before the `plans`:
 
 .. code-block:: python
 
     INSTALLED_APPS = (
         ...
-        'plans_payments.apps.PlansPaymentsConfig',
+        'plans_payments',
+        'plans',
         ...
     )
 
@@ -39,14 +42,18 @@ Add Django plans payments's URL patterns:
 
 .. code-block:: python
 
-    from plans_payments import urls as plans_payments_urls
-
-
     urlpatterns = [
         ...
-        url(r'^', include(plans_payments_urls)),
+        url(r'^plans-payments', include('plans_payments.urls')),
         ...
     ]
+
+ Set `django-plans` settings and set model to:
+
+.. code-block:: python
+
+   PAYMENT_MODEL = 'plans_payments.Payment'
+
 
 Features
 --------

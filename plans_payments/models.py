@@ -15,10 +15,10 @@ class Payment(BasePayment):
     )
 
     def get_failure_url(self):
-        return reverse('payment_failure')
+        return reverse('order_payment_failure', kwargs={'pk': self.order.pk})
 
     def get_success_url(self):
-        return reverse('payment_success')
+        return reverse('order_payment_success', kwargs={'pk': self.order.pk})
 
     def get_purchased_items(self):
         # you'll probably want to retrieve these from an associated order
