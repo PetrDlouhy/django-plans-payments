@@ -1,0 +1,10 @@
+{% extends 'plans/order_detail.html' %}
+{% block payment_method %}
+
+    <p>
+         Choose your payment method
+    </p>
+
+    <a class="btn btn-success" role="button" href="{% url "create_payment" payment_variant='default' order_id=object.id %}">Pay using Dummy™ ;)</a>
+    <a class="btn btn-success" role="button" href="{% url "create_payment" payment_variant='paypal-sandbox' order_id=object.id %}">Pay using PayPal sandbox</a>
+{% endblock %}

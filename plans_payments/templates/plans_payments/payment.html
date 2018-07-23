@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% load bootstrap3 %}
+{% block content %}
+<form action="{{ form.action }}" method="{{ form.method }}">
+    {% csrf_token %}
+    {% bootstrap_form form %}
+    <p><input type="submit" value="Proceed" /></p>
+</form>
+{% endblock %}
