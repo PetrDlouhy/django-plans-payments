@@ -49,7 +49,7 @@ Add Django ``plans_payments`` to the URL patterns:
         ...
     ]
 
- Set ``django-plans`` settings and set model to:
+Set ``django-plans`` settings and set model to:
 
 .. code-block:: python
 
