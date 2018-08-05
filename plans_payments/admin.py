@@ -10,6 +10,12 @@ class PaymentAdmin(admin.ModelAdmin):
         'fraud_status',
         'currency',
         'total',
+        'created',
+        'modified',
+    )
+    readonly_fields = (
+        'created',
+        'modified',
     )
 
 
