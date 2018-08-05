@@ -1,8 +1,10 @@
 from django.db import models
+from django.dispatch.dispatcher import receiver
 from django.urls import reverse
 
 from payments import PurchasedItem
 from payments.models import BasePayment
+from payments.signals import status_changed
 
 
 class Payment(BasePayment):
@@ -29,7 +31,10 @@ class Payment(BasePayment):
             # tax=self.order.tax,
         )
 
-    def save(self, *args, **kwargs):
-        if self.status == 'confirmed':
-            self.order.complete_order()
-        super().save(*args, **kwargs)
+
+@receiver(status_changed)
+def change_payment_status(sender, *args, **kwargs):
+    payment = kwargs['instance']
+    order = payment.order
+    if payment.status == 'confirmed':
+        order.complete_order()
