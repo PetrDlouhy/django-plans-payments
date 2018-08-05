@@ -21,13 +21,14 @@ The full documentation is at https://django-plans-payments.readthedocs.io.
 Quickstart
 ----------
 
-Install django-plans and django-payments apps.
+Install and configure ``django-plans`` and ``django-payments`` apps.
+Capture mode is not yet supported, so ``PAYMENT_VARINANTS`` with ``'capture': False`` will not get confirmed.
 
 Install Django plans payments::
 
     pip install django-plans-payments
 
-Add it to your `INSTALLED_APPS`, before the `plans`:
+Add it to your ``INSTALLED_APPS``, before the ``plans``:
 
 .. code-block:: python
 
@@ -38,7 +39,7 @@ Add it to your `INSTALLED_APPS`, before the `plans`:
         ...
     )
 
-Add Django plans payments's URL patterns:
+Add Django ``plans_payments`` to the URL patterns:
 
 .. code-block:: python
 
@@ -48,7 +49,7 @@ Add Django plans payments's URL patterns:
         ...
     ]
 
- Set `django-plans` settings and set model to:
+ Set ``django-plans`` settings and set model to:
 
 .. code-block:: python
 
