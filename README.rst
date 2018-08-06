@@ -11,7 +11,7 @@ Django plans payments
 .. image:: https://codecov.io/gh/PetrDlouhy/django-plans-payments/branch/master/graph/badge.svg
     :target: https://codecov.io/gh/PetrDlouhy/django-plans-payments
 
-Integration between django-plans and django-payments.
+Integration between `django-plans <https://github.com/django-getpaid/django-plans>`_ and `django-payments <https://github.com/mirumee/django-payments>`_.
 
 Documentation
 -------------
