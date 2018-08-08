@@ -11,7 +11,8 @@ Django plans payments
 .. image:: https://codecov.io/gh/PetrDlouhy/django-plans-payments/branch/master/graph/badge.svg
     :target: https://codecov.io/gh/PetrDlouhy/django-plans-payments
 
-Integration between `django-plans <https://github.com/django-getpaid/django-plans>`_ and `django-payments <https://github.com/mirumee/django-payments>`_.
+Almost automatic integration between `django-plans <https://github.com/django-getpaid/django-plans>`_ and `django-payments <https://github.com/mirumee/django-payments>`_.
+This will add payment buttons to the order page and automatically confirm the `Order` after the payment.
 
 Documentation
 -------------
