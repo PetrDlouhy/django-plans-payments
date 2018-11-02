@@ -23,12 +23,11 @@ class Payment(BasePayment):
 
     def get_purchased_items(self):
         yield PurchasedItem(
-            name=self.order.__str__(),
-            sku='BSKV',
+            name=self.description,
+            sku=self.order.pk,
             quantity=1,
             price=self.order.amount,
-            currency=self.order.currency,
-            # tax=self.order.tax,
+            currency=self.currency,
         )
 
 

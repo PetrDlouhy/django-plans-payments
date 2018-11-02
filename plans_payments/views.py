@@ -24,9 +24,9 @@ def create_payment(request, payment_variant, order_id):
     payment = Payment.objects.create(
         variant=payment_variant,
         order=order,
-        description='Subscription plan purchase',
-        total=Decimal(order.amount),
-        # tax=Decimal(order.tax),
+        description='Subscription plan %s purchase' % order.name,
+        total=Decimal(order.total()),
+        tax=Decimal(order.tax_total()),
         currency=order.currency,
         delivery=Decimal(0),
         billing_first_name=settings.PLANS_INVOICE_ISSUER['issuer_name'],
