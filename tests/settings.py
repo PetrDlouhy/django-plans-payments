@@ -22,6 +22,8 @@ INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sites",
+    "plans",
+    "payments",
     "plans_payments",
 ]
 

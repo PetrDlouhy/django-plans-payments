@@ -2,3 +2,4 @@
 # Additional requirements go here
 
 django-plans
+django-payments

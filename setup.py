@@ -56,7 +56,10 @@ setup(
         'plans_payments',
     ],
     include_package_data=True,
-    install_requires=['django-plans'],
+    install_requires=[
+        'django-plans',
+        'django-payments',
+    ],
     license="MIT",
     zip_safe=False,
     keywords='django-plans-payments',
