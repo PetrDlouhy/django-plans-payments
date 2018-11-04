@@ -10,6 +10,7 @@ class PaymentAdmin(admin.ModelAdmin):
         'fraud_status',
         'currency',
         'total',
+        'transaction_fee',
         'created',
         'modified',
     )
