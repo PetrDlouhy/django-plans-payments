@@ -1,4 +1,5 @@
 import json
+from decimal import Decimal
 
 from django.db import models
 from django.dispatch.dispatcher import receiver
@@ -17,15 +18,20 @@ class Payment(BasePayment):
         blank=True,
     )
     transaction_fee = models.DecimalField(
-        max_digits=9, decimal_places=2, default='0.0')
+        max_digits=9,
+        decimal_places=2,
+        default='0.0',
+    )
 
     def save(self, **kwargs):
         if hasattr(self, 'extra_data') and self.extra_data:
             extra_data = json.loads(self.extra_data)
             if 'response' in extra_data:
-                related_resources = extra_data['response']['transactions'][0]['related_resources']
-                if len(related_resources) == 1:
-                    self.transaction_fee = related_resources[0]['sale']['transaction_fee']['value']
+                transactions = extra_data['response']['transactions']
+                for transaction in transactions:
+                    related_resources = transaction['related_resources']
+                    if len(related_resources) == 1:
+                        self.transaction_fee += Decimal(related_resources[0]['sale']['transaction_fee']['value'])
         ret_val = super().save(**kwargs)
         return ret_val
 
