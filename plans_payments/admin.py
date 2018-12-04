@@ -8,6 +8,7 @@ from . import models
 class PaymentAdmin(RelatedFieldAdmin):
     list_display = (
         'id',
+        'transaction_id',
         'order__user',
         'variant',
         'status',
