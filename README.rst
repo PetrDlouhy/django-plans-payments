@@ -35,6 +35,7 @@ Add it to your ``INSTALLED_APPS``, before the ``plans``:
 
     INSTALLED_APPS = (
         ...
+        'related_admin',
         'plans_payments',
         'plans',
         ...

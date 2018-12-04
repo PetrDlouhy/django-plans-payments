@@ -3,3 +3,4 @@
 
 django-plans
 django-payments
+django-related-admin
