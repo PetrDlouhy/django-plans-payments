@@ -1,4 +1,11 @@
+{% load static %}
 
 {% for variant in variants %}
-   <a class="btn btn-success" role="button" href="{% url "create_payment" payment_variant=variant order_id=object.id %}">Pay using {{ variant }}</a>
+   <a class="btn btn-success" role="button" href="{% url "create_payment" payment_variant=variant order_id=object.id %}">
+      {% if variant == 'paypal' %}
+      Pay using PayPal <img src="{% static 'img/visa-logo.svg' %}" height="30px" alt="Visa icon"></img>
+      {% else %}
+      Pay using {{ variant }}
+      {% endif %}
+   </a>
 {% endfor %}
