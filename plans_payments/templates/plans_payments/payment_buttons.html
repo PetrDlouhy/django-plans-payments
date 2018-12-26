@@ -1,5 +1,6 @@
 {% load static %}
 
+{% block "buttons" %}
 {% for variant in variants %}
    <a class="btn btn-success" role="button" href="{% url "create_payment" payment_variant=variant order_id=object.id %}">
       Pay using
@@ -18,3 +19,4 @@
       {% endif %}
    </a>
 {% endfor %}
+{% endblock %}
