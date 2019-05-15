@@ -1,4 +1,5 @@
 import json
+import logging
 from decimal import Decimal
 
 from django.db import models
@@ -8,6 +9,8 @@ from django.urls import reverse
 from payments import PurchasedItem
 from payments.models import BasePayment
 from payments.signals import status_changed
+
+logger = logging.getLogger(__name__)
 
 
 class Payment(BasePayment):
@@ -20,7 +23,7 @@ class Payment(BasePayment):
     transaction_fee = models.DecimalField(
         max_digits=9,
         decimal_places=2,
-        default='0.0',
+        default=Decimal('0.0'),
     )
 
     def save(self, **kwargs):
@@ -31,7 +34,16 @@ class Payment(BasePayment):
                 for transaction in transactions:
                     related_resources = transaction['related_resources']
                     if len(related_resources) == 1:
-                        self.transaction_fee += Decimal(related_resources[0]['sale']['transaction_fee']['value'])
+                        sale = related_resources[0]['sale']
+                        if 'transaction_fee' in sale:
+                            self.transaction_fee += Decimal(sale['transaction_fee']['value'])
+                        else:
+                            logger.warning(
+                                'Payment fee not included',
+                                extra={
+                                    'extra_data': extra_data,
+                                },
+                            )
         ret_val = super().save(**kwargs)
         return ret_val
 
