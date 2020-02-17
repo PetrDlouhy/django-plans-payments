@@ -62,6 +62,23 @@ class Payment(BasePayment):
             currency=self.currency,
         )
 
+    def get_renew_token(self):
+        """
+        Get the recurring payments renew token for user of this payment
+        Used by PayU provider for now
+        """
+        return self.order.user.userplan.recurring_token
+
+    def store_renew_token(self, token):
+        """
+        Store the recurring payments renew token for user of this payment
+        The renew token is string defined by the provider
+        Used by PayU provider for now
+        """
+        self.order.user.userplan.is_recurring = True
+        self.order.user.userplan.recurring_token = token
+        self.order.user.userplan.save()
+
 
 @receiver(status_changed)
 def change_payment_status(sender, *args, **kwargs):
