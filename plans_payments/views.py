@@ -18,10 +18,9 @@ def payment_details(request, payment_id):
                             {'form': form, 'payment': payment})
 
 
-def create_payment(request, payment_variant, order_id):
-    order = get_object_or_404(Order, pk=order_id)
+def create_payment_object(payment_variant, order):
     Payment = get_payment_model()
-    payment = Payment.objects.create(
+    return Payment.objects.create(
         variant=payment_variant,
         order=order,
         description='Subscription plan %s purchase' % order.name,
@@ -38,4 +37,9 @@ def create_payment(request, payment_variant, order_id):
         billing_country_code=settings.PLANS_INVOICE_ISSUER['issuer_country'],
         # billing_country_area=settings.PLANS_INVOICE_ISSUER['issuer_name'],
         customer_ip_address='127.0.0.1')
+
+
+def create_payment(request, payment_variant, order_id):
+    order = get_object_or_404(Order, pk=order_id)
+    payment = create_payment_object(payment_variant, order)
     return redirect(reverse('payment_details', kwargs={'payment_id': payment.id}))

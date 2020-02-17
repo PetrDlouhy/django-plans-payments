@@ -7,8 +7,15 @@ from django.dispatch.dispatcher import receiver
 from django.urls import reverse
 
 from payments import PurchasedItem
+from payments.core import provider_factory
 from payments.models import BasePayment
 from payments.signals import status_changed
+from payments.payu_api import CVV2Required
+
+from plans.models import Order
+from plans.signals import account_automatic_renewal
+
+from .views import create_payment_object
 
 logger = logging.getLogger(__name__)
 
@@ -75,14 +82,43 @@ class Payment(BasePayment):
         The renew token is string defined by the provider
         Used by PayU provider for now
         """
-        self.order.user.userplan.is_recurring = True
+        self.order.user.userplan.automatic_renewal = True
+        self.order.user.userplan.recurring_pricing = self.order.pricing
         self.order.user.userplan.recurring_token = token
+        self.order.user.userplan.recurring_amount = self.order.amount
+        self.order.user.userplan.recurring_tax = self.order.tax
+        self.order.user.userplan.recurring_currency = self.order.currency
         self.order.user.userplan.save()
+
+    def auto_complete_recurring(self):
+        provider = provider_factory(self.variant)
+        provider.auto_complete_recurring(self)
 
 
 @receiver(status_changed)
 def change_payment_status(sender, *args, **kwargs):
     payment = kwargs['instance']
+    order = payment.order
+    if payment.status == 'confirmed':
+        order.complete_order()
+
+
+@receiver(account_automatic_renewal)
+def renew_accounts(sender, user, *args, **kwargs):
+    userplan = user.userplan
+    order = Order.objects.create(
+        user=user,
+        plan=userplan.plan,
+        pricing=userplan.recurring_pricing,
+        amount=userplan.recurring_amount,
+        tax=userplan.recurring_tax,
+        currency=userplan.recurring_currency,
+    )
+    payment = create_payment_object('payu-recurring', order)
+    try:
+        payment.auto_complete_recurring()
+    except CVV2Required as e:
+        print("CVV2 code is required, enter it at %s" % e.get_form_url())
     order = payment.order
     if payment.status == 'confirmed':
         order.complete_order()
