@@ -5,12 +5,13 @@ from decimal import Decimal
 from django.db import models
 from django.dispatch.dispatcher import receiver
 from django.urls import reverse
+from django.core.mail import send_mail
 
 from payments import PurchasedItem
 from payments.core import provider_factory
 from payments.models import BasePayment
+from payments.payu_api import UserActionRequired
 from payments.signals import status_changed
-from payments.payu_api import CVV2Required
 
 from plans.models import Order
 from plans.signals import account_automatic_renewal
@@ -117,8 +118,15 @@ def renew_accounts(sender, user, *args, **kwargs):
     payment = create_payment_object('payu-recurring', order)
     try:
         payment.auto_complete_recurring()
-    except CVV2Required as e:
-        print("CVV2 code is required, enter it at %s" % e.get_form_url())
+    except UserActionRequired as e:
+        print("CVV2/3DS code is required, enter it at %s" % e.get_form_url())
+        send_mail(
+            'Recurring payment - action required',
+            'Please renew your CVV2/3DS at %s' % e.get_form_url(),
+            'noreply@blenderkit.com',
+            [payment.order.user.email],
+            fail_silently=False,
+        )
     order = payment.order
     if payment.status == 'confirmed':
         order.complete_order()
