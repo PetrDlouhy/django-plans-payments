@@ -115,7 +115,7 @@ def renew_accounts(sender, user, *args, **kwargs):
         tax=userplan.recurring_tax,
         currency=userplan.recurring_currency,
     )
-    payment = create_payment_object('payu-recurring', order)
+    payment = create_payment_object('payu-recurring-action-required', order)
     try:
         payment.auto_complete_recurring()
     except UserActionRequired as e:
