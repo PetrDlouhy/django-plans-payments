@@ -8,9 +8,8 @@ from django.urls import reverse
 from django.core.mail import send_mail
 
 from payments import PurchasedItem
-from payments.core import provider_factory
 from payments.models import BasePayment
-from payments.payu_api import UserActionRequired
+from payments.payu_rest import UserActionRequired
 from payments.signals import status_changed
 
 from plans.models import Order
@@ -77,7 +76,7 @@ class Payment(BasePayment):
         """
         return self.order.user.userplan.recurring_token
 
-    def store_renew_token(self, token):
+    def set_renew_token(self, token):
         """
         Store the recurring payments renew token for user of this payment
         The renew token is string defined by the provider
@@ -90,10 +89,6 @@ class Payment(BasePayment):
         self.order.user.userplan.recurring_tax = self.order.tax
         self.order.user.userplan.recurring_currency = self.order.currency
         self.order.user.userplan.save()
-
-    def auto_complete_recurring(self):
-        provider = provider_factory(self.variant)
-        provider.auto_complete_recurring(self)
 
 
 @receiver(status_changed)
