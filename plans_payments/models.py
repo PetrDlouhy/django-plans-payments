@@ -5,6 +5,7 @@ from decimal import Decimal
 from django.db import models
 from django.dispatch.dispatcher import receiver
 from django.urls import reverse
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import send_mail
 
 from payments import PurchasedItem
@@ -12,7 +13,7 @@ from payments.models import BasePayment
 from payments.payu_rest import UserActionRequired
 from payments.signals import status_changed
 
-from plans.models import Order
+from plans.models import Order, RecurringUserPlan
 from plans.signals import account_automatic_renewal
 
 from .views import create_payment_object
@@ -74,21 +75,27 @@ class Payment(BasePayment):
         Get the recurring payments renew token for user of this payment
         Used by PayU provider for now
         """
-        return self.order.user.userplan.recurring_token
+        try:
+            return self.order.user.userplan.recurring.token
+        except ObjectDoesNotExist:
+            return None
 
-    def set_renew_token(self, token):
+    def set_renew_token(self, token, card_expire_year=None, card_expire_month=None):
         """
         Store the recurring payments renew token for user of this payment
         The renew token is string defined by the provider
         Used by PayU provider for now
         """
-        self.order.user.userplan.automatic_renewal = True
-        self.order.user.userplan.recurring_pricing = self.order.pricing
-        self.order.user.userplan.recurring_token = token
-        self.order.user.userplan.recurring_amount = self.order.amount
-        self.order.user.userplan.recurring_tax = self.order.tax
-        self.order.user.userplan.recurring_currency = self.order.currency
-        self.order.user.userplan.save()
+        recurring, _ = RecurringUserPlan.objects.get_or_create(userplan=self.order.user.userplan)
+        recurring.automatic_renewal = True
+        recurring.pricing = self.order.pricing
+        recurring.token = token
+        recurring.amount = self.order.amount
+        recurring.tax = self.order.tax
+        recurring.currency = self.order.currency
+        recurring.card_expire_year = card_expire_year
+        recurring.card_expire_month = card_expire_month
+        recurring.save()
 
 
 @receiver(status_changed)
