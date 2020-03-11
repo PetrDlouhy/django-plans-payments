@@ -8,9 +8,8 @@ from django.urls import reverse
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import send_mail
 
-from payments import PurchasedItem
+from payments import PurchasedItem, PaymentStatus
 from payments.models import BasePayment
-from payments.payu_rest import UserActionRequired
 from payments.signals import status_changed
 
 from plans.models import Order, RecurringUserPlan
@@ -60,6 +59,9 @@ class Payment(BasePayment):
 
     def get_success_url(self):
         return reverse('order_payment_success', kwargs={'pk': self.order.pk})
+
+    def get_payment_url(self):
+        return reverse('payment_details', kwargs={'payment_id': self.pk})
 
     def get_purchased_items(self):
         yield PurchasedItem(
@@ -112,19 +114,19 @@ def renew_accounts(sender, user, *args, **kwargs):
     order = Order.objects.create(
         user=user,
         plan=userplan.plan,
-        pricing=userplan.recurring_pricing,
-        amount=userplan.recurring_amount,
-        tax=userplan.recurring_tax,
-        currency=userplan.recurring_currency,
+        pricing=userplan.recurring.pricing,
+        amount=userplan.recurring.amount,
+        tax=userplan.recurring.tax,
+        currency=userplan.recurring.currency,
     )
-    payment = create_payment_object('payu-recurring-action-required', order)
-    try:
-        payment.auto_complete_recurring()
-    except UserActionRequired as e:
-        print("CVV2/3DS code is required, enter it at %s" % e.get_form_url())
+    # TODO: don't hardwire the payment provider name
+    payment = create_payment_object('payu-recurring', order)
+    redirect_url = payment.auto_complete_recurring()
+    if redirect_url != 'success':
+        print("CVV2/3DS code is required, enter it at %s" % redirect_url)
         send_mail(
             'Recurring payment - action required',
-            'Please renew your CVV2/3DS at %s' % e.get_form_url(),
+            'Please renew your CVV2/3DS at %s' % redirect_url,
             'noreply@blenderkit.com',
             [payment.order.user.email],
             fail_silently=False,
