@@ -2,13 +2,14 @@ import json
 import logging
 from decimal import Decimal
 
+from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
+from django.core.mail import send_mail
 from django.db import models
 from django.dispatch.dispatcher import receiver
 from django.urls import reverse
-from django.core.exceptions import ObjectDoesNotExist
-from django.core.mail import send_mail
 
-from payments import PurchasedItem, PaymentStatus
+from payments import PurchasedItem
 from payments.models import BasePayment
 from payments.signals import status_changed
 
@@ -119,8 +120,9 @@ def renew_accounts(sender, user, *args, **kwargs):
         tax=userplan.recurring.tax,
         currency=userplan.recurring.currency,
     )
-    # TODO: don't hardwire the payment provider name
-    payment = create_payment_object('payu-recurring', order)
+
+    RECURRING_PAYMENT_PROVIDER = getattr(settings, 'PLANS_PAYMENTS_RECURRING_PAYMENT_PROVIDER', 0)
+    payment = create_payment_object(RECURRING_PAYMENT_PROVIDER, order)
     redirect_url = payment.auto_complete_recurring()
     if redirect_url != 'success':
         print("CVV2/3DS code is required, enter it at %s" % redirect_url)
