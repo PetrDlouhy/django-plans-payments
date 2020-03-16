@@ -18,7 +18,16 @@ def payment_details(request, payment_id):
                             {'form': form, 'payment': payment})
 
 
-def create_payment_object(payment_variant, order):
+def get_client_ip(request):
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(',')[0]
+    else:
+        ip = request.META.get('REMOTE_ADDR')
+    return ip
+
+
+def create_payment_object(payment_variant, order, request):
     Payment = get_payment_model()
     return Payment.objects.create(
         variant=payment_variant,
@@ -36,10 +45,10 @@ def create_payment_object(payment_variant, order):
         billing_postcode=settings.PLANS_INVOICE_ISSUER['issuer_zipcode'],
         billing_country_code=settings.PLANS_INVOICE_ISSUER['issuer_country'],
         # billing_country_area=settings.PLANS_INVOICE_ISSUER['issuer_name'],
-        customer_ip_address='127.0.0.1')
+        customer_ip_address=get_client_ip(request))
 
 
 def create_payment(request, payment_variant, order_id):
     order = get_object_or_404(Order, pk=order_id)
-    payment = create_payment_object(payment_variant, order)
+    payment = create_payment_object(payment_variant, order, request)
     return redirect(reverse('payment_details', kwargs={'payment_id': payment.id}))
