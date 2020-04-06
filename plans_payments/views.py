@@ -3,7 +3,6 @@ from django.conf import settings
 from django.shortcuts import get_object_or_404, redirect
 from django.template.response import TemplateResponse
 from django.urls import reverse
-from django.views.generic import TemplateView
 from payments import get_payment_model, RedirectNeeded
 from plans.models import Order
 
@@ -19,12 +18,7 @@ def payment_details(request, payment_id):
 
 
 def get_client_ip(request):
-    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-    if x_forwarded_for:
-        ip = x_forwarded_for.split(',')[0]
-    else:
-        ip = request.META.get('REMOTE_ADDR')
-    return ip
+    return request.META.get('REMOTE_ADDR')
 
 
 def create_payment_object(payment_variant, order, request):
