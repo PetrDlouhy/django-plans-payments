@@ -57,11 +57,13 @@ Set ``django-plans`` settings and set model to:
 
    PAYMENT_MODEL = 'plans_payments.Payment'
 
+Customer IP address
+-------------------
 
-Features
---------
-
-* TODO
+Customer IP address is stored in Payment model and used for some payment providers (i.e. PayU).
+For security reasons `django-plans-payments` does acquire the IP only from ``request`` ``REMOTE_ADDR`` parameter.
+If you are behind proxy, you will need to setup some mechanism to populate this variable from ``HTTP_X_FORWARDED_FOR`` parameter.
+The suggested solution is to use `django-httpforwardedfor <https://github.com/PaesslerAG/django-httpxforwardedfor>`_ or `django-xff <https://github.com/ferrix/xff/>`_ application for that.
 
 Running Tests
 -------------

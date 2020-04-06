@@ -15,6 +15,7 @@ class PaymentAdmin(RelatedFieldAdmin):
         'fraud_status',
         'currency',
         'total',
+        'customer_ip_address',
         'transaction_fee',
         'created',
         'modified',
