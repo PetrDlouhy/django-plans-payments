@@ -21,7 +21,7 @@ def get_client_ip(request):
     return request.META.get('REMOTE_ADDR')
 
 
-def create_payment_object(payment_variant, order, request):
+def create_payment_object(payment_variant, order, request=None):
     Payment = get_payment_model()
     return Payment.objects.create(
         variant=payment_variant,
@@ -39,7 +39,8 @@ def create_payment_object(payment_variant, order, request):
         billing_postcode=settings.PLANS_INVOICE_ISSUER['issuer_zipcode'],
         billing_country_code=settings.PLANS_INVOICE_ISSUER['issuer_country'],
         # billing_country_area=settings.PLANS_INVOICE_ISSUER['issuer_name'],
-        customer_ip_address=get_client_ip(request))
+        customer_ip_address=get_client_ip(request) if request else '127.0.0.1',
+    )
 
 
 def create_payment(request, payment_variant, order_id):
