@@ -13,7 +13,6 @@ from payments import PurchasedItem
 from payments.models import BasePayment
 from payments.signals import status_changed
 
-from plans.models import Order, RecurringUserPlan
 from plans.signals import account_automatic_renewal
 
 from .views import create_payment_object
@@ -92,16 +91,14 @@ class Payment(BasePayment):
         The renew token is string defined by the provider
         Used by PayU provider for now
         """
-        recurring, _ = RecurringUserPlan.objects.get_or_create(userplan=self.order.user.userplan)
-        recurring.automatic_renewal = True
-        recurring.pricing = self.order.pricing
-        recurring.token = token
-        recurring.amount = self.order.amount
-        recurring.tax = self.order.tax
-        recurring.currency = self.order.currency
-        recurring.card_expire_year = card_expire_year
-        recurring.card_expire_month = card_expire_month
-        recurring.save()
+        self.order.user.userplan.set_plan_renewal(
+            order=self.order,
+            token=token,
+            payment_provider=getattr(settings, 'PLANS_PAYMENTS_RECURRING_PAYMENT_PROVIDER', 0),
+            card_expire_year=card_expire_year,
+            card_expire_month=card_expire_month,
+            automatic_renewal=True,
+        )
 
 
 @receiver(status_changed)
@@ -115,17 +112,9 @@ def change_payment_status(sender, *args, **kwargs):
 @receiver(account_automatic_renewal)
 def renew_accounts(sender, user, *args, **kwargs):
     userplan = user.userplan
-    order = Order.objects.create(
-        user=user,
-        plan=userplan.plan,
-        pricing=userplan.recurring.pricing,
-        amount=userplan.recurring.amount,
-        tax=userplan.recurring.tax,
-        currency=userplan.recurring.currency,
-    )
+    order = userplan.recurring.create_renew_order()
 
-    RECURRING_PAYMENT_PROVIDER = getattr(settings, 'PLANS_PAYMENTS_RECURRING_PAYMENT_PROVIDER', 0)
-    payment = create_payment_object(RECURRING_PAYMENT_PROVIDER, order)
+    payment = create_payment_object(userplan.recurring.payment_provider, order)
     redirect_url = payment.auto_complete_recurring()
     if redirect_url != 'success':
         print("CVV2/3DS code is required, enter it at %s" % redirect_url)
@@ -136,6 +125,5 @@ def renew_accounts(sender, user, *args, **kwargs):
             [payment.order.user.email],
             fail_silently=False,
         )
-    order = payment.order
     if payment.status == 'confirmed':
         order.complete_order()
