@@ -97,7 +97,7 @@ class Payment(BasePayment):
             payment_provider=getattr(settings, 'PLANS_PAYMENTS_RECURRING_PAYMENT_PROVIDER', 0),
             card_expire_year=card_expire_year,
             card_expire_month=card_expire_month,
-            automatic_renewal=True,
+            has_automatic_renewal=True,
         )
 
 
