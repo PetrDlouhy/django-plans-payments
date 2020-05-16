@@ -112,18 +112,19 @@ def change_payment_status(sender, *args, **kwargs):
 @receiver(account_automatic_renewal)
 def renew_accounts(sender, user, *args, **kwargs):
     userplan = user.userplan
-    order = userplan.recurring.create_renew_order()
+    if userplan.recurring.payment_provider == getattr(settings, 'PLANS_PAYMENTS_RECURRING_PAYMENT_PROVIDER', 0):
+        order = userplan.recurring.create_renew_order()
 
-    payment = create_payment_object(userplan.recurring.payment_provider, order)
-    redirect_url = payment.auto_complete_recurring()
-    if redirect_url != 'success':
-        print("CVV2/3DS code is required, enter it at %s" % redirect_url)
-        send_mail(
-            'Recurring payment - action required',
-            'Please renew your CVV2/3DS at %s' % redirect_url,
-            'noreply@blenderkit.com',
-            [payment.order.user.email],
-            fail_silently=False,
-        )
-    if payment.status == 'confirmed':
-        order.complete_order()
+        payment = create_payment_object(userplan.recurring.payment_provider, order)
+        redirect_url = payment.auto_complete_recurring()
+        if redirect_url != 'success':
+            print("CVV2/3DS code is required, enter it at %s" % redirect_url)
+            send_mail(
+                'Recurring payment - action required',
+                'Please renew your CVV2/3DS at %s' % redirect_url,
+                'noreply@blenderkit.com',
+                [payment.order.user.email],
+                fail_silently=False,
+            )
+        if payment.status == 'confirmed':
+            order.complete_order()
