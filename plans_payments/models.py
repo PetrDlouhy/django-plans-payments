@@ -95,7 +95,7 @@ class Payment(BasePayment):
         self.order.user.userplan.set_plan_renewal(
             order=self.order,
             token=token,
-            payment_provider=getattr(settings, 'PLANS_PAYMENTS_RECURRING_PAYMENT_PROVIDER', 0),
+            payment_provider=self.variant,
             card_expire_year=card_expire_year,
             card_expire_month=card_expire_month,
             has_automatic_renewal=True,
@@ -119,7 +119,7 @@ def change_payment_status(sender, *args, **kwargs):
 @receiver(account_automatic_renewal)
 def renew_accounts(sender, user, *args, **kwargs):
     userplan = user.userplan
-    if userplan.recurring.payment_provider == getattr(settings, 'PLANS_PAYMENTS_RECURRING_PAYMENT_PROVIDER', 0):
+    if userplan.recurring.has_automatic_renewal:
         order = userplan.recurring.create_renew_order()
 
         payment = create_payment_object(userplan.recurring.payment_provider, order)
