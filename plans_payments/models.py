@@ -9,11 +9,12 @@ from django.db import models
 from django.dispatch.dispatcher import receiver
 from django.urls import reverse
 
-from payments import PurchasedItem
+from payments import PurchasedItem, PaymentStatus
 from payments.models import BasePayment
 from payments.signals import status_changed
 
 from plans.signals import account_automatic_renewal
+from plans.models import Order
 
 from .views import create_payment_object
 
@@ -105,8 +106,14 @@ class Payment(BasePayment):
 def change_payment_status(sender, *args, **kwargs):
     payment = kwargs['instance']
     order = payment.order
-    if payment.status == 'confirmed':
+    if payment.status == PaymentStatus.CONFIRMED:
         order.complete_order()
+    if (
+            order.status != Order.STATUS.COMPLETED and
+            payment.status not in (PaymentStatus.CONFIRMED, PaymentStatus.WAITING)
+    ):
+        order.status = Order.STATUS.CANCELED
+        order.save()
 
 
 @receiver(account_automatic_renewal)
