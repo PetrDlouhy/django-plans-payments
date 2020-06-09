@@ -2,7 +2,6 @@ import json
 import logging
 from decimal import Decimal
 
-from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.mail import send_mail
 from django.db import models
@@ -82,9 +81,11 @@ class Payment(BasePayment):
         Used by PayU provider for now
         """
         try:
-            return self.order.user.userplan.recurring.token
+            if self.variant == self.order.user.userplan.recurring.payment_provider:
+                return self.order.user.userplan.recurring.token
         except ObjectDoesNotExist:
-            return None
+            pass
+        return None
 
     def set_renew_token(self, token, card_expire_year=None, card_expire_month=None):
         """
