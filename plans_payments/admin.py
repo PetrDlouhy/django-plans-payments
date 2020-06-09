@@ -32,6 +32,7 @@ class PaymentAdmin(RelatedFieldAdmin):
         'order__user__email',
         'transaction_id',
         'extra_data',
+        'token',
     )
     list_select_related = (
         'order__user',
