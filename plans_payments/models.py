@@ -87,7 +87,7 @@ class Payment(BasePayment):
             pass
         return None
 
-    def set_renew_token(self, token, card_expire_year=None, card_expire_month=None):
+    def set_renew_token(self, token, card_expire_year=None, card_expire_month=None, card_masked_number=None):
         """
         Store the recurring payments renew token for user of this payment
         The renew token is string defined by the provider
@@ -99,6 +99,7 @@ class Payment(BasePayment):
             payment_provider=self.variant,
             card_expire_year=card_expire_year,
             card_expire_month=card_expire_month,
+            card_masked_number=card_masked_number,
             has_automatic_renewal=True,
         )
 
