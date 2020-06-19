@@ -112,7 +112,7 @@ def change_payment_status(sender, *args, **kwargs):
         order.complete_order()
     if (
             order.status != Order.STATUS.COMPLETED and
-            payment.status not in (PaymentStatus.CONFIRMED, PaymentStatus.WAITING)
+            payment.status not in (PaymentStatus.CONFIRMED, PaymentStatus.WAITING, PaymentStatus.INPUT)
     ):
         order.status = Order.STATUS.CANCELED
         order.save()
