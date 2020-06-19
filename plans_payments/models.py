@@ -3,7 +3,6 @@ import logging
 from decimal import Decimal
 
 from django.core.exceptions import ObjectDoesNotExist
-from django.core.mail import send_mail
 from django.db import models
 from django.dispatch.dispatcher import receiver
 from django.urls import reverse
@@ -12,8 +11,9 @@ from payments import PurchasedItem, PaymentStatus
 from payments.models import BasePayment
 from payments.signals import status_changed
 
-from plans.signals import account_automatic_renewal
+from plans.contrib import get_user_language, send_template_email
 from plans.models import Order
+from plans.signals import account_automatic_renewal
 
 from .views import create_payment_object
 
@@ -139,12 +139,12 @@ def renew_accounts(sender, user, *args, **kwargs):
 
         if redirect_url != 'success':
             print("CVV2/3DS code is required, enter it at %s" % redirect_url)
-            send_mail(
-                'Recurring payment - action required',
-                'Please renew your CVV2/3DS at %s' % redirect_url,
-                'noreply@blenderkit.com',
+            send_template_email(
                 [payment.order.user.email],
-                fail_silently=False,
+                'mail/renew_cvv_3ds_title.txt',
+                'mail/renew_cvv_3ds_body.txt',
+                {'redirect_url': redirect_url},
+                get_user_language(payment.order.user),
             )
         if payment.status == 'confirmed':
             order.complete_order()

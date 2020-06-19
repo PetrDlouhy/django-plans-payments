@@ -1,0 +1,1 @@
+Please renew your CVV2/3DS at {{ redirect_url }}
