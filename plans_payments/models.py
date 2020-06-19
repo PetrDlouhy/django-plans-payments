@@ -125,7 +125,18 @@ def renew_accounts(sender, user, *args, **kwargs):
         order = userplan.recurring.create_renew_order()
 
         payment = create_payment_object(userplan.recurring.payment_provider, order)
-        redirect_url = payment.auto_complete_recurring()
+
+        try:
+            redirect_url = payment.auto_complete_recurring()
+        except Exception:
+            logger.exception(
+                'Exception during account renewal',
+                extra={
+                    'payment': payment,
+                },
+            )
+            return
+
         if redirect_url != 'success':
             print("CVV2/3DS code is required, enter it at %s" % redirect_url)
             send_mail(
