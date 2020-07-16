@@ -81,8 +81,9 @@ class Payment(BasePayment):
         Used by PayU provider for now
         """
         try:
-            if self.variant == self.order.user.userplan.recurring.payment_provider:
-                return self.order.user.userplan.recurring.token
+            userplan = self.order.user.userplan
+            if userplan.has_automatic_renewal() and self.variant == userplan.recurring.payment_provider:
+                return userplan.recurring.token
         except ObjectDoesNotExist:
             pass
         return None
@@ -100,7 +101,7 @@ class Payment(BasePayment):
             card_expire_year=card_expire_year,
             card_expire_month=card_expire_month,
             card_masked_number=card_masked_number,
-            has_automatic_renewal=True,
+            has_automatic_renewal=False,
         )
 
 
@@ -109,6 +110,9 @@ def change_payment_status(sender, *args, **kwargs):
     payment = kwargs['instance']
     order = payment.order
     if payment.status == PaymentStatus.CONFIRMED:
+        if hasattr(order.user.userplan, 'recurring'):
+            order.user.userplan.recurring.has_automatic_renewal = True
+            order.user.userplan.recurring.save()
         order.complete_order()
     if (
             order.status != Order.STATUS.COMPLETED and
