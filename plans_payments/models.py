@@ -112,8 +112,8 @@ def change_payment_status(sender, *args, **kwargs):
     if payment.status == PaymentStatus.CONFIRMED:
         if hasattr(order.user.userplan, 'recurring'):
             order.user.userplan.recurring.has_automatic_renewal = True
-        order.user.userplan.recurring.token_verified = True
-        order.user.userplan.recurring.save()
+            order.user.userplan.recurring.token_verified = True
+            order.user.userplan.recurring.save()
         order.complete_order()
     if (
             order.status != Order.STATUS.COMPLETED and
