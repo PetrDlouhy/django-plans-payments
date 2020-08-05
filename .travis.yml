@@ -8,7 +8,6 @@ python:
 
 env: 
   - TOX_ENV=py36-django-20
-  - TOX_ENV=py35-django-20
   - TOX_ENV=py37-django-21
   - TOX_ENV=py36-django-21
   - TOX_ENV=py37-django-22
