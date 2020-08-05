@@ -81,9 +81,9 @@ class Payment(BasePayment):
         Used by PayU provider for now
         """
         try:
-            userplan = self.order.user.userplan
-            if userplan.has_automatic_renewal() and self.variant == userplan.recurring.payment_provider:
-                return userplan.recurring.token
+            recurring_plan = self.order.user.userplan.recurring
+            if recurring_plan.token_verified and self.variant == recurring_plan.payment_provider:
+                return recurring_plan.token
         except ObjectDoesNotExist:
             pass
         return None
@@ -112,7 +112,8 @@ def change_payment_status(sender, *args, **kwargs):
     if payment.status == PaymentStatus.CONFIRMED:
         if hasattr(order.user.userplan, 'recurring'):
             order.user.userplan.recurring.has_automatic_renewal = True
-            order.user.userplan.recurring.save()
+        order.user.userplan.recurring.token_verified = True
+        order.user.userplan.recurring.save()
         order.complete_order()
     if (
             order.status != Order.STATUS.COMPLETED and
