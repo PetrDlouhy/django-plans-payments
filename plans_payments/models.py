@@ -88,7 +88,9 @@ class Payment(BasePayment):
             pass
         return None
 
-    def set_renew_token(self, token, card_expire_year=None, card_expire_month=None, card_masked_number=None):
+    def set_renew_token(
+        self, token, card_expire_year=None, card_expire_month=None, card_masked_number=None, automatic_renewal=True,
+    ):
         """
         Store the recurring payments renew token for user of this payment
         The renew token is string defined by the provider
@@ -101,7 +103,7 @@ class Payment(BasePayment):
             card_expire_year=card_expire_year,
             card_expire_month=card_expire_month,
             card_masked_number=card_masked_number,
-            has_automatic_renewal=False,
+            has_automatic_renewal=automatic_renewal,
         )
 
 
@@ -111,7 +113,6 @@ def change_payment_status(sender, *args, **kwargs):
     order = payment.order
     if payment.status == PaymentStatus.CONFIRMED:
         if hasattr(order.user.userplan, 'recurring'):
-            order.user.userplan.recurring.has_automatic_renewal = True
             order.user.userplan.recurring.token_verified = True
             order.user.userplan.recurring.save()
         order.complete_order()
@@ -121,6 +122,8 @@ def change_payment_status(sender, *args, **kwargs):
     ):
         order.status = Order.STATUS.CANCELED
         order.save()
+        order.user.userplan.recurring.token_verified = False
+        order.user.userplan.recurring.save()
 
 
 @receiver(account_automatic_renewal)
