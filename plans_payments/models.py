@@ -72,7 +72,7 @@ class Payment(BasePayment):
             sku=self.order.pk,
             quantity=1,
             price=self.order.amount,
-            tax_rate=self.order.tax,
+            tax_rate=(1 + self.order.tax / 100) if self.order.tax else 1,
             currency=self.currency,
         )
 
