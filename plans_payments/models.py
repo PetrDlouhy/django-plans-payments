@@ -71,7 +71,8 @@ class Payment(BasePayment):
             name=self.description,
             sku=self.order.pk,
             quantity=1,
-            price=self.order.total(),
+            price=self.order.amount,
+            tax_rate=self.order.tax,
             currency=self.currency,
         )
 
