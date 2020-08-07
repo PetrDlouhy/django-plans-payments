@@ -123,8 +123,9 @@ def change_payment_status(sender, *args, **kwargs):
     ):
         order.status = Order.STATUS.CANCELED
         order.save()
-        order.user.userplan.recurring.token_verified = False
-        order.user.userplan.recurring.save()
+        if hasattr(order.user.userplan, 'recurring'):
+            order.user.userplan.recurring.token_verified = False
+            order.user.userplan.recurring.save()
 
 
 @receiver(account_automatic_renewal)
