@@ -7,7 +7,7 @@ from django.db import models
 from django.dispatch.dispatcher import receiver
 from django.urls import reverse
 
-from payments import PurchasedItem, PaymentStatus
+from payments import PaymentStatus, PurchasedItem
 from payments.models import BasePayment
 from payments.signals import status_changed
 
@@ -34,7 +34,11 @@ class Payment(BasePayment):
     )
 
     def save(self, **kwargs):
-        if hasattr(self, 'extra_data') and self.extra_data:
+        if 'payu' in self.variant:
+            # TODO: base this on actual payment methods and currency fees on PayU
+            # or even better on real PayU info
+            self.transaction_fee = self.total * Decimal('0.029') + Decimal('0.05')
+        elif hasattr(self, 'extra_data') and self.extra_data:
             extra_data = json.loads(self.extra_data)
             if 'response' in extra_data:
                 transactions = extra_data['response']['transactions']
