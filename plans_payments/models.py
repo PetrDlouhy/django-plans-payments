@@ -160,5 +160,5 @@ def renew_accounts(sender, user, *args, **kwargs):
                 {'redirect_url': redirect_url},
                 get_user_language(payment.order.user),
             )
-        if payment.status == 'confirmed':
+        if payment.status == PaymentStatus.CONFIRMED:
             order.complete_order()
