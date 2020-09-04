@@ -2,6 +2,7 @@ import json
 import logging
 from decimal import Decimal
 
+from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 from django.dispatch.dispatcher import receiver
@@ -135,7 +136,7 @@ def change_payment_status(sender, *args, **kwargs):
 @receiver(account_automatic_renewal)
 def renew_accounts(sender, user, *args, **kwargs):
     userplan = user.userplan
-    if userplan.recurring.has_automatic_renewal:
+    if userplan.recurring.payment_provider in settings.PAYMENT_VARIANTS and userplan.recurring.has_automatic_renewal:
         order = userplan.recurring.create_renew_order()
 
         payment = create_payment_object(userplan.recurring.payment_provider, order)
