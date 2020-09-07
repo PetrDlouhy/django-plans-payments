@@ -23,6 +23,8 @@ def get_client_ip(request):
 
 def create_payment_object(payment_variant, order, request=None):
     Payment = get_payment_model()
+    if hasattr(order.user.userplan, 'recurring') and order.user.userplan.recurring.payment_provider != payment_variant:
+        order.user.userplan.recurring.delete()
     return Payment.objects.create(
         variant=payment_variant,
         order=order,
