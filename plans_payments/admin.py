@@ -17,6 +17,7 @@ class PaymentAdmin(RelatedFieldAdmin):
         'total',
         'customer_ip_address',
         'transaction_fee',
+        'captured_amount',
         'created',
         'modified',
     )
