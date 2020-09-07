@@ -143,7 +143,8 @@ def renew_accounts(sender, user, *args, **kwargs):
 
         try:
             redirect_url = payment.auto_complete_recurring()
-        except Exception:
+        except Exception as e:
+            print(f"Exceptin during automatic renewal: {e}")
             logger.exception(
                 'Exception during account renewal',
                 extra={
