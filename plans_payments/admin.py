@@ -9,6 +9,7 @@ class PaymentAdmin(RelatedFieldAdmin):
     list_display = (
         'id',
         'transaction_id',
+        'token',
         'order__user',
         'variant',
         'status',
