@@ -21,7 +21,7 @@ def get_client_ip(request):
     return request.META.get('REMOTE_ADDR')
 
 
-def create_payment_object(payment_variant, order, request=None):
+def create_payment_object(payment_variant, order, request=None, autorenewed_payment=False):
     Payment = get_payment_model()
     if hasattr(order.user.userplan, 'recurring') and order.user.userplan.recurring.payment_provider != payment_variant:
         order.user.userplan.recurring.delete()
@@ -42,6 +42,7 @@ def create_payment_object(payment_variant, order, request=None):
         billing_country_code=settings.PLANS_INVOICE_ISSUER['issuer_country'],
         # billing_country_area=settings.PLANS_INVOICE_ISSUER['issuer_name'],
         customer_ip_address=get_client_ip(request) if request else '127.0.0.1',
+        autorenewed_payment=autorenewed_payment,
     )
 
 
