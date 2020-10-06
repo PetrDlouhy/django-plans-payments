@@ -33,6 +33,9 @@ class Payment(BasePayment):
         decimal_places=2,
         default=Decimal('0.0'),
     )
+    autorenewed_payment = models.BooleanField(
+        default=False,
+    )
 
     def save(self, **kwargs):
         if 'payu' in self.variant:
@@ -139,7 +142,7 @@ def renew_accounts(sender, user, *args, **kwargs):
     if userplan.recurring.payment_provider in settings.PAYMENT_VARIANTS and userplan.recurring.has_automatic_renewal:
         order = userplan.recurring.create_renew_order()
 
-        payment = create_payment_object(userplan.recurring.payment_provider, order)
+        payment = create_payment_object(userplan.recurring.payment_provider, order, autorenewed_payment=True)
 
         try:
             redirect_url = payment.auto_complete_recurring()
