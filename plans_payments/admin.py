@@ -5,6 +5,7 @@ from related_admin import RelatedFieldAdmin
 from . import models
 
 
+@admin.register(models.Payment)
 class PaymentAdmin(RelatedFieldAdmin):
     list_display = (
         'id',
@@ -22,12 +23,14 @@ class PaymentAdmin(RelatedFieldAdmin):
         'captured_amount',
         'created',
         'modified',
+        'autorenewed_payment',
     )
     list_filter = (
         'status',
         'variant',
         'fraud_status',
         'currency',
+        'autorenewed_payment',
     )
     search_fields = (
         'order__user__first_name',
@@ -44,6 +47,3 @@ class PaymentAdmin(RelatedFieldAdmin):
         'created',
         'modified',
     )
-
-
-admin.site.register(models.Payment, PaymentAdmin)
