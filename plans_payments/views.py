@@ -1,5 +1,4 @@
 from decimal import Decimal
-from django.conf import settings
 from django.shortcuts import get_object_or_404, redirect
 from django.template.response import TemplateResponse
 from django.urls import reverse
@@ -33,14 +32,15 @@ def create_payment_object(payment_variant, order, request=None, autorenewed_paym
         tax=Decimal(order.tax_total()),
         currency=order.currency,
         delivery=Decimal(0),
-        billing_first_name=settings.PLANS_INVOICE_ISSUER['issuer_name'],
-        # billing_last_name=settings.PLANS_INVOICE_ISSUER['issuer_'],
-        billing_address_1=settings.PLANS_INVOICE_ISSUER['issuer_street'],
-        # billing_address_2=settings.PLANS_INVOICE_ISSUER['issuer_'],
-        billing_city=settings.PLANS_INVOICE_ISSUER['issuer_city'],
-        billing_postcode=settings.PLANS_INVOICE_ISSUER['issuer_zipcode'],
-        billing_country_code=settings.PLANS_INVOICE_ISSUER['issuer_country'],
-        # billing_country_area=settings.PLANS_INVOICE_ISSUER['issuer_name'],
+        billing_first_name=order.user.first_name,
+        billing_last_name=order.user.last_name,
+        billing_email=order.user.email,
+        billing_address_1=order.user.billinginfo.street,
+        # billing_address_2=order.user.billinginfo.zipcode,
+        billing_city=order.user.billinginfo.city,
+        billing_postcode=order.user.billinginfo.zipcode,
+        billing_country_code=order.user.billinginfo.country,
+        # billing_country_area=order.user.billinginfo.zipcode,
         customer_ip_address=get_client_ip(request) if request else '127.0.0.1',
         autorenewed_payment=autorenewed_payment,
     )
