@@ -1,6 +1,7 @@
 import json
 import logging
 from decimal import Decimal
+from urllib.parse import urljoin
 
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
@@ -9,6 +10,7 @@ from django.dispatch.dispatcher import receiver
 from django.urls import reverse
 
 from payments import PaymentStatus, PurchasedItem
+from payments.core import get_base_url
 from payments.models import BasePayment
 from payments.signals import status_changed
 
@@ -154,7 +156,10 @@ def renew_accounts(sender, user, *args, **kwargs):
                     'payment': payment,
                 },
             )
-            return
+            redirect_url = urljoin(
+                get_base_url(),
+                reverse('create_order_plan', kwargs={'pk': order.get_plan_pricing().pk}),
+            )
 
         if redirect_url != 'success':
             print("CVV2/3DS code is required, enter it at %s" % redirect_url)
