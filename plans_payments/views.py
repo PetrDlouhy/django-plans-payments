@@ -11,6 +11,7 @@ def payment_details(request, payment_id):
     try:
         form = payment.get_form(data=request.POST or None)
     except RedirectNeeded as redirect_to:
+        payment.save()
         return redirect(str(redirect_to))
     return TemplateResponse(request, 'plans_payments/payment.html',
                             {'form': form, 'payment': payment})
