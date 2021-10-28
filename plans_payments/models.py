@@ -9,7 +9,7 @@ from django.db import models
 from django.dispatch.dispatcher import receiver
 from django.urls import reverse
 
-from payments import PaymentStatus, PurchasedItem
+from payments import PaymentStatus, PurchasedItem, RedirectNeeded
 from payments.core import get_base_url
 from payments.models import BasePayment
 from payments.signals import status_changed
@@ -46,7 +46,7 @@ class Payment(BasePayment):
             self.transaction_fee = self.total * Decimal('0.029') + Decimal('0.05')
         elif hasattr(self, 'extra_data') and self.extra_data:
             extra_data = json.loads(self.extra_data)
-            if 'response' in extra_data:
+            if 'response' in extra_data and 'transactions' in extra_data['response']:
                 transactions = extra_data['response']['transactions']
                 for transaction in transactions:
                     related_resources = transaction['related_resources']
@@ -83,36 +83,50 @@ class Payment(BasePayment):
             currency=self.currency,
         )
 
-    def get_renew_token(self):
-        """
-        Get the recurring payments renew token for user of this payment
-        Used by PayU provider for now
-        """
-        try:
-            recurring_plan = self.order.user.userplan.recurring
-            if recurring_plan.token_verified and self.variant == recurring_plan.payment_provider:
-                return recurring_plan.token
-        except ObjectDoesNotExist:
-            pass
-        return None
+    def is_recurring(self):
+        return self.order.get_plan_pricing().has_automatic_renewal
 
-    def set_renew_token(
-        self, token, card_expire_year=None, card_expire_month=None, card_masked_number=None, automatic_renewal=True,
-    ):
-        """
-        Store the recurring payments renew token for user of this payment
-        The renew token is string defined by the provider
-        Used by PayU provider for now
-        """
-        self.order.user.userplan.set_plan_renewal(
-            order=self.order,
-            token=token,
-            payment_provider=self.variant,
-            card_expire_year=card_expire_year,
-            card_expire_month=card_expire_month,
-            card_masked_number=card_masked_number,
-            has_automatic_renewal=automatic_renewal,
-        )
+    def get_subscription(self):
+        if self.order.get_plan_pricing().has_automatic_renewal:
+            return self.order.user.userplan.recurring
+        else:
+            return None
+        #     self.order.user.userplan.set_plan_renewal(
+        #         order=self.order,
+        #         has_automatic_renewal=False
+        #     )
+        # return self.order.user.userplan.recurring
+
+    # def get_renew_token(self):
+    #     """
+    #     Get the recurring payments renew token for user of this payment
+    #     Used by PayU provider for now
+    #     """
+    #     try:
+    #         recurring_plan = self.order.user.userplan.recurring
+    #         if recurring_plan.token_verified and self.variant == recurring_plan.payment_provider:
+    #             return recurring_plan.token
+    #     except ObjectDoesNotExist:
+    #         pass
+    #     return None
+
+    # def set_renew_token(
+    #     self, token, card_expire_year=None, card_expire_month=None, card_masked_number=None, automatic_renewal=True,
+    # ):
+    #     """
+    #     Store the recurring payments renew token for user of this payment
+    #     The renew token is string defined by the provider
+    #     Used by PayU provider for now
+    #     """
+    #     self.order.user.userplan.set_plan_renewal(
+    #         order=self.order,
+    #         token=token,
+    #         payment_provider=self.variant,
+    #         card_expire_year=card_expire_year,
+    #         card_expire_month=card_expire_month,
+    #         card_masked_number=card_masked_number,
+    #         has_automatic_renewal=automatic_renewal,
+    #     )
 
 
 @receiver(status_changed)
@@ -143,8 +157,12 @@ def renew_accounts(sender, user, *args, **kwargs):
 
         payment = create_payment_object(userplan.recurring.payment_provider, order, autorenewed_payment=True)
 
+        redirect_url = None
         try:
-            redirect_url = payment.auto_complete_recurring()
+            payment.autocomplete_with_subscription()
+        except RedirectNeeded as redirect_needed:
+            redirect_url = str(redirect_needed)
+            payment.save()
         except Exception as e:
             print(f"Exceptin during automatic renewal: {e}")
             logger.exception(
@@ -158,7 +176,7 @@ def renew_accounts(sender, user, *args, **kwargs):
                 reverse('create_order_plan', kwargs={'pk': order.get_plan_pricing().pk}),
             )
 
-        if redirect_url != 'success':
+        if redirect_url:
             print("CVV2/3DS code is required, enter it at %s" % redirect_url)
             send_template_email(
                 [payment.order.user.email],

@@ -11,6 +11,7 @@ def payment_details(request, payment_id):
     try:
         form = payment.get_form(data=request.POST or None)
     except RedirectNeeded as redirect_to:
+        payment.save()
         return redirect(str(redirect_to))
     return TemplateResponse(request, 'plans_payments/payment.html',
                             {'form': form, 'payment': payment})
@@ -24,6 +25,12 @@ def create_payment_object(payment_variant, order, request=None, autorenewed_paym
     Payment = get_payment_model()
     if hasattr(order.user.userplan, 'recurring') and order.user.userplan.recurring.payment_provider != payment_variant:
         order.user.userplan.recurring.delete()
+    if not hasattr(order.user.userplan, 'recurring') and order.get_plan_pricing().has_automatic_renewal:
+        order.user.userplan.set_plan_renewal(
+            order=order,
+            has_automatic_renewal=True,
+            payment_provider=payment_variant,
+        )
     return Payment.objects.create(
         variant=payment_variant,
         order=order,
