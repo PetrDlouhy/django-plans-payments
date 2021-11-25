@@ -4,7 +4,7 @@ from decimal import Decimal
 from urllib.parse import urljoin
 
 from django.conf import settings
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import models
 from django.dispatch.dispatcher import receiver
 from django.urls import reverse
@@ -38,6 +38,16 @@ class Payment(BasePayment):
     autorenewed_payment = models.BooleanField(
         default=False,
     )
+
+    def clean(self):
+        confirmed_payment_exists = self.order.payment_set.filter(status=Order.STATUS.COMPLETED).exists()
+        if self.status != PaymentStatus.CONFIRMED and not confirmed_payment_exists:
+            raise ValidationError(
+                {
+                    'status': 'Can\'t leave confirmed order without any confirmed payment.'
+                    'Please change Order first if you still want to perform this change.',
+                },
+            )
 
     def save(self, **kwargs):
         if 'payu' in self.variant:
