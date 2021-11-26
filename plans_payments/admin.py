@@ -1,8 +1,26 @@
 from django.contrib import admin
-
+from django.contrib.admin import SimpleListFilter
+from payments import PaymentStatus
+from plans.models import Order
 from related_admin import RelatedFieldAdmin
 
 from . import models
+
+
+class FaultyPaymentsFilter(SimpleListFilter):
+    title = 'faulty_payments'
+    parameter_name = 'faulty_payments'
+
+    def lookups(self, request, model_admin):
+        return [
+            ('unconfirmed_order', 'Confirmed payment unconfirmed order'),
+        ]
+
+    def queryset(self, request, queryset):
+        if self.value() == 'unconfirmed_order':
+            return queryset.filter(status=PaymentStatus.CONFIRMED).\
+                exclude(order__status=Order.STATUS.COMPLETED)
+        return queryset
 
 
 @admin.register(models.Payment)
@@ -31,6 +49,7 @@ class PaymentAdmin(RelatedFieldAdmin):
         'fraud_status',
         'currency',
         'autorenewed_payment',
+        FaultyPaymentsFilter,
     )
     search_fields = (
         'order__user__first_name',
