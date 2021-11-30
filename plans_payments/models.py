@@ -40,14 +40,16 @@ class Payment(BasePayment):
     )
 
     def clean(self):
-        confirmed_payment_exists = self.order.payment_set.filter(status=Order.STATUS.COMPLETED).exists()
-        if self.status != PaymentStatus.CONFIRMED and not confirmed_payment_exists:
-            raise ValidationError(
-                {
-                    'status': 'Can\'t leave confirmed order without any confirmed payment.'
-                    'Please change Order first if you still want to perform this change.',
-                },
-            )
+        if self.order.status == Order.STATUS.COMPLETED:
+            confirmed_payment_count = self.order.payment_set.exclude(pk=self.pk)
+            confirmed_payment_count = confirmed_payment_count.filter(status=PaymentStatus.CONFIRMED).count()
+            if self.status != PaymentStatus.CONFIRMED and confirmed_payment_count == 0:
+                raise ValidationError(
+                    {
+                        'status': 'Can\'t leave confirmed order without any confirmed payment.'
+                        'Please change Order first if you still want to perform this change.',
+                    },
+                )
 
     def save(self, **kwargs):
         if 'payu' in self.variant:
