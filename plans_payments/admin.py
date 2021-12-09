@@ -62,6 +62,9 @@ class PaymentAdmin(RelatedFieldAdmin):
     list_select_related = (
         'order__user',
     )
+    autocomplete_fields = (
+        'order',
+    )
     readonly_fields = (
         'created',
         'modified',
