@@ -2,7 +2,7 @@
 {% block content %}
 <form action="{{ form.action }}" method="{{ form.method }}">
     {% csrf_token %}
-    {% form %}
+    {{ form }}
     <p><input type="submit" value="Proceed" /></p>
 </form>
 {% endblock %}
