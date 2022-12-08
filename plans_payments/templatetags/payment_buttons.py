@@ -1,10 +1,8 @@
 from django import template
 from django.conf import settings
-from django.urls import reverse
-
-from payments.core import provider_factory
 
 register = template.Library()
+
 
 # settings value
 @register.inclusion_tag("plans_payments/payment_buttons.html")
