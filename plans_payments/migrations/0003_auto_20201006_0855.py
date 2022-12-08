@@ -2,6 +2,7 @@
 
 from decimal import Decimal
 from django.db import migrations, models
+import phonenumber_field.modelfields
 
 
 class Migration(migrations.Migration):
@@ -15,6 +16,11 @@ class Migration(migrations.Migration):
             model_name='payment',
             name='autorenewed_payment',
             field=models.BooleanField(default=False),
+        ),
+        migrations.AddField(
+            model_name='payment',
+            name='billing_phone',
+            field=phonenumber_field.modelfields.PhoneNumberField(blank=True, max_length=128, region=None),
         ),
         migrations.AlterField(
             model_name='payment',

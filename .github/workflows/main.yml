@@ -71,7 +71,7 @@ jobs:
 
       - name: Testing
         run: |
-          python manage.py makemigrations --check --dry-run
+          python manage.py makemigrations plans_payments --check --dry-run
           tox -e py`echo ${{matrix.python-version}} | sed s/\\\.//g`-dj`echo ${{matrix.DJANGO_VERSION}} | sed s/[.*]//g`
           coverage xml && codecov
   lint:

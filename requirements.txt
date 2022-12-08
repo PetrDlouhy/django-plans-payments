@@ -1,6 +1,6 @@
 
 # Additional requirements go here
 
--e git+https://github.com/PetrDlouhy/django-plans@feature/recurring-payments#egg=django-plans
+django-plans
 django-payments
 django-related-admin
