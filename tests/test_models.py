@@ -24,7 +24,7 @@ class TestPlans_payments(TestCase):
         p = models.Payment(transaction_fee=1)
         p.save()
         rp = models.Payment.objects.get()
-        self.assertEquals(rp.transaction_fee, 1)
+        self.assertEqual(rp.transaction_fee, 1)
 
     def test_save_extra_data(self):
         p = models.Payment()
@@ -48,7 +48,7 @@ class TestPlans_payments(TestCase):
         p.extra_data = json.dumps(extra_data)
         p.save()
         rp = models.Payment.objects.get()
-        self.assertEquals(rp.transaction_fee, Decimal("5.20"))
+        self.assertEqual(rp.transaction_fee, Decimal("5.20"))
 
     def test_save_extra_data_without_fee(self):
         p = models.Payment()
@@ -69,7 +69,7 @@ class TestPlans_payments(TestCase):
         p.extra_data = json.dumps(extra_data)
         p.save()
         rp = models.Payment.objects.get()
-        self.assertEquals(rp.transaction_fee, Decimal("0.0"))
+        self.assertEqual(rp.transaction_fee, Decimal("0.0"))
 
     def tearDown(self):
         pass
