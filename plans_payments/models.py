@@ -46,7 +46,7 @@ class Payment(BasePayment):
             if self.status != PaymentStatus.CONFIRMED and confirmed_payment_count == 0:
                 raise ValidationError(
                     {
-                        "status": "Can't leave confirmed order without any confirmed payment."
+                        "status": "Can't leave confirmed order without any confirmed payment. "
                         "Please change Order first if you still want to perform this change.",
                     },
                 )

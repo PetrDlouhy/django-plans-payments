@@ -22,6 +22,7 @@ INSTALLED_APPS = [
     "django.contrib.sites",
     "django.contrib.sessions",
     "django.contrib.messages",
+    "sequences",
     "plans",
     "payments",
     "plans_payments",
@@ -59,3 +60,17 @@ MIDDLEWARE = (
 )
 
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
+
+PLANS_INVOICE_ISSUER = {
+    "issuer_name": "Foo s.r.o.",
+    "issuer_street": "Bar 3",
+    "issuer_zipcode": "130 00",
+    "issuer_city": "Prague 3",
+    "issuer_country": "CZ",
+    "issuer_tax_number": "CZ 123 456 789",
+}
+PLANS_CURRENCY = "USD"
+PLANS_TAXATION_POLICY = "plans.taxation.eu.EUTaxationPolicy"
+PLANS_TAX_COUNTRY = "CZ"
+PLANS_DEFAULT_COUNTRY = "CZ"
+PLANS_GET_COUNTRY_FROM_IP = True

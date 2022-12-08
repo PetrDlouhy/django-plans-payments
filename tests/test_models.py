@@ -22,6 +22,30 @@ class TestPlansPayments(TestCase):
     def setUp(self):
         pass
 
+    def test_clean(self):
+        p = models.Payment(order=baker.make("Order", status=Order.STATUS.NEW))
+        p.clean()
+        self.assertEqual(p.status, "waiting")
+
+    def test_clean_completed(self):
+        p = models.Payment(
+            order=baker.make("Order", status=Order.STATUS.COMPLETED),
+            status=PaymentStatus.CONFIRMED,
+        )
+        p.clean()
+        self.assertEqual(p.status, "confirmed")
+
+    def test_clean_completed_no_confirmed_payment(self):
+        p = models.Payment(
+            order=baker.make("Order", status=Order.STATUS.COMPLETED),
+            status=PaymentStatus.WAITING,
+        )
+        with self.assertRaisesRegex(
+            Exception, "Can't leave confirmed order without any confirmed payment."
+        ):
+            p.clean()
+        self.assertEqual(p.status, "waiting")
+
     def test_save(self):
         p = models.Payment(transaction_fee=1)
         p.save()
@@ -72,15 +96,63 @@ class TestPlansPayments(TestCase):
         rp = models.Payment.objects.get()
         self.assertEqual(rp.transaction_fee, Decimal("0.0"))
 
+    def test_save_payu(self):
+        """Save with payment varian payu"""
+        p = models.Payment(variant="payu", total=Decimal("10.00"))
+        p.save()
+        rp = models.Payment.objects.get()
+        self.assertEqual(rp.transaction_fee, Decimal("0.34"))
+
+    def test_save_no_extra_data(self):
+        p = models.Payment()
+        p.save()
+        rp = models.Payment.objects.get()
+        self.assertEqual(rp.transaction_fee, Decimal("0.0"))
+
+    def test_save_extra_data_no_response(self):
+        p = models.Payment()
+        extra_data = {}
+        p.extra_data = json.dumps(extra_data)
+        p.save()
+        rp = models.Payment.objects.get()
+        self.assertEqual(rp.transaction_fee, Decimal("0.0"))
+
+    def test_save_extra_data_no_related_resources(self):
+        p = models.Payment()
+        extra_data = {
+            "response": {
+                "transactions": (
+                    {
+                        "related_resources": (),
+                    },
+                ),
+            },
+        }
+        p.extra_data = json.dumps(extra_data)
+        p.save()
+        rp = models.Payment.objects.get()
+        self.assertEqual(rp.transaction_fee, Decimal("0.0"))
+
     def tearDown(self):
         pass
 
     def test_get_renew_token(self):
         user = baker.make("User")
         p = models.Payment(order=baker.make("Order", user=user))
-        userplan = baker.make("UserPlan", user=user, order__user=user)
-        baker.make("RecurringUserPlan", user_plan=userplan, token_verified=True)
         self.assertEqual(p.get_renew_token(), None)
+
+    def test_get_renew_token_verified(self):
+        user = baker.make("User")
+        p = models.Payment(order=baker.make("Order", user=user), variant="default")
+        userplan = baker.make("UserPlan", user=user, order__user=user)
+        baker.make(
+            "RecurringUserPlan",
+            user_plan=userplan,
+            token_verified=True,
+            token="token",
+            payment_provider="default",
+        )
+        self.assertEqual(p.get_renew_token(), "token")
 
     def test_set_renew_token(self):
         user = baker.make("User")
@@ -115,19 +187,46 @@ class TestPlansPayments(TestCase):
         self.assertEqual(p.status, "confirmed")
         self.assertEqual(recurring_user_plan.token_verified, True)
 
+    def test_change_payment_status_rejected(self):
+        p = models.Payment(
+            order=baker.make("Order", status=Order.STATUS.NEW),
+            status=PaymentStatus.REJECTED,
+        )
+        userplan = baker.make("UserPlan", user=p.order.user)
+        baker.make("RecurringUserPlan", user_plan=userplan)
+        models.change_payment_status("sender", instance=p)
+        self.assertEqual(p.status, "rejected")
+
     def test_change_payment_status_confirmed_no_recurring(self):
         p = models.Payment(
             order=baker.make("Order", status=Order.STATUS.NEW),
             status=PaymentStatus.CONFIRMED,
         )
-        userplan = baker.make("UserPlan", user=p.order.user)
+        baker.make("UserPlan", user=p.order.user)
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "confirmed")
 
-    def test_renew_accounts(self):
+    def test_renew_accounts_no_variant(self):
         p = models.Payment()
         user = baker.make("User")
         userplan = baker.make("UserPlan", user=user)
         baker.make("RecurringUserPlan", user_plan=userplan)
+        models.renew_accounts("sender", user, p)
+        self.assertEqual(p.autorenewed_payment, False)
+
+    def test_renew_accounts(self):
+        p = baker.make("Payment", variant="default", order__amount=12)
+        user = baker.make("User")
+        userplan = baker.make("UserPlan", user=user)
+        plan_pricing = baker.make("PlanPricing", plan=userplan.plan, price=12)
+        baker.make("BillingInfo", user=user)
+        baker.make(
+            "RecurringUserPlan",
+            user_plan=userplan,
+            payment_provider="default",
+            has_automatic_renewal=True,
+            amount=14,
+            pricing=plan_pricing.pricing,
+        )
         models.renew_accounts("sender", user, p)
         self.assertEqual(p.autorenewed_payment, False)
