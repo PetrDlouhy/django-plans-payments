@@ -1,26 +1,30 @@
 from decimal import Decimal
 
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import get_object_or_404, redirect
 from django.template.response import TemplateResponse
-from django.urls import reverse
+from django.urls import reverse, reverse_lazy
+from django.views.generic import View
 from payments import RedirectNeeded, get_payment_model
 from plans.models import Order
 
 
-def payment_details(request, payment_id):
-    if not request.user.is_authenticated:
-        return redirect(reverse("auth_login") + "?next=" + request.path)
-    payment = get_object_or_404(
-        get_payment_model(), order__user=request.user, id=payment_id
-    )
-    try:
-        form = payment.get_form(data=request.POST or None)
-    except RedirectNeeded as redirect_to:
-        payment.save()
-        return redirect(str(redirect_to))
-    return TemplateResponse(
-        request, "plans_payments/payment.html", {"form": form, "payment": payment}
-    )
+class PaymentDetailView(LoginRequiredMixin, View):
+    login_url = reverse_lazy("auth_login")
+    template_name = "plans_payments/payment.html"
+
+    def get(self, request, *args, payment_id=None):
+        payment = get_object_or_404(
+            get_payment_model(), order__user=request.user, id=payment_id
+        )
+        try:
+            form = payment.get_form(data=request.POST or None)
+        except RedirectNeeded as redirect_to:
+            payment.save()
+            return redirect(str(redirect_to))
+        return TemplateResponse(
+            request, "plans_payments/payment.html", {"form": form, "payment": payment}
+        )
 
 
 def get_client_ip(request):
@@ -58,9 +62,10 @@ def create_payment_object(
     )
 
 
-def create_payment(request, payment_variant, order_id):
-    if not request.user.is_authenticated:
-        return redirect(reverse("auth_login") + "?next=" + request.path)
-    order = get_object_or_404(Order, pk=order_id, user=request.user)
-    payment = create_payment_object(payment_variant, order, request)
-    return redirect(reverse("payment_details", kwargs={"payment_id": payment.id}))
+class CreatePaymentView(LoginRequiredMixin, View):
+    login_url = reverse_lazy("auth_login")
+
+    def get(self, request, *args, order_id=None, payment_variant=None):
+        order = get_object_or_404(Order, pk=order_id, user=request.user)
+        payment = create_payment_object(payment_variant, order, request)
+        return redirect(reverse("payment_details", kwargs={"payment_id": payment.id}))
