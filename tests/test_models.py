@@ -16,7 +16,6 @@ from plans_payments import models
 
 
 class TestPlans_payments(TestCase):
-
     def setUp(self):
         pass
 
@@ -58,8 +57,7 @@ class TestPlans_payments(TestCase):
                     {
                         "related_resources": (
                             {
-                                "sale": {
-                                },
+                                "sale": {},
                             },
                         ),
                     },

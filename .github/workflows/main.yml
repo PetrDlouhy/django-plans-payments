@@ -80,12 +80,13 @@ jobs:
       - uses: actions/checkout@v2
       - name: Install
         run: |
+          pip install -r requirements.txt
           pip install -r requirements_test.txt
       - name: Running Flake8
         run: flake8
-      # - name: Running isort
-      #   run: python -m isort . --check-only --diff
-      # - name: Running black
-      #   run: black --check .
-      # - name: Running mypy
-      #   run: mypy .
+      - name: Running isort
+        run: python -m isort . --check-only --diff
+      - name: Running black
+        run: black --check .
+      - name: Running mypy
+        run: mypy plans_payments
