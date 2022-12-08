@@ -7,6 +7,8 @@ isort
 black
 mypy
 django-stubs
+psycopg2
+model_bakery
 
 
 # Additional test requirements go here

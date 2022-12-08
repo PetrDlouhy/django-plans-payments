@@ -1,7 +1,5 @@
 # -*- coding: utf-8
-from __future__ import absolute_import, unicode_literals
-
-import django
+from typing import Dict, Tuple
 
 DEBUG = True
 USE_TZ = True
@@ -22,14 +20,40 @@ INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sites",
+    "django.contrib.sessions",
+    "django.contrib.messages",
     "plans",
     "payments",
     "plans_payments",
+    "tests",
 ]
 
 SITE_ID = 1
+PAYMENT_MODEL = "plans_payments.Payment"
 
-if django.VERSION >= (1, 10):
-    MIDDLEWARE = ()
-else:
-    MIDDLEWARE_CLASSES = ()
+PAYMENT_VARIANTS: Dict[str, Tuple[str, Dict]] = {
+    "default": ("payments.dummy.DummyProvider", {}),
+}
+
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ],
+        },
+    },
+]
+
+
+MIDDLEWARE = (
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+)
+
+DEFAULT_AUTO_FIELD = "django.db.models.AutoField"

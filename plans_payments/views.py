@@ -9,7 +9,7 @@ from plans.models import Order
 
 def payment_details(request, payment_id):
     if not request.user.is_authenticated:
-        return redirect(reverse("auth_login"))
+        return redirect(reverse("auth_login") + "?next=" + request.path)
     payment = get_object_or_404(
         get_payment_model(), order__user=request.user, id=payment_id
     )
@@ -60,7 +60,7 @@ def create_payment_object(
 
 def create_payment(request, payment_variant, order_id):
     if not request.user.is_authenticated:
-        return redirect(reverse("auth_login"))
+        return redirect(reverse("auth_login") + "?next=" + request.path)
     order = get_object_or_404(Order, pk=order_id, user=request.user)
     payment = create_payment_object(payment_variant, order, request)
     return redirect(reverse("payment_details", kwargs={"payment_id": payment.id}))
