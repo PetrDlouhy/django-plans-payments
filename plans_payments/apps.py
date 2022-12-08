@@ -3,4 +3,4 @@ from django.apps import AppConfig
 
 
 class PlansPaymentsConfig(AppConfig):
-    name = 'plans_payments'
+    name = "plans_payments"

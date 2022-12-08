@@ -1,7 +1,5 @@
 # -*- coding: utf-8
-from __future__ import unicode_literals, absolute_import
-
-import django
+from typing import Dict, Tuple
 
 DEBUG = True
 USE_TZ = True
@@ -22,14 +20,57 @@ INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sites",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "sequences",
     "plans",
     "payments",
     "plans_payments",
+    "tests",
 ]
 
 SITE_ID = 1
+PAYMENT_MODEL = "plans_payments.Payment"
 
-if django.VERSION >= (1, 10):
-    MIDDLEWARE = ()
-else:
-    MIDDLEWARE_CLASSES = ()
+PAYMENT_VARIANTS: Dict[str, Tuple[str, Dict]] = {
+    "default": ("payments.dummy.DummyProvider", {}),
+}
+
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "debug": True,
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ],
+        },
+    },
+]
+
+
+MIDDLEWARE = (
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+)
+
+DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
+
+PLANS_INVOICE_ISSUER = {
+    "issuer_name": "Foo s.r.o.",
+    "issuer_street": "Bar 3",
+    "issuer_zipcode": "130 00",
+    "issuer_city": "Prague 3",
+    "issuer_country": "CZ",
+    "issuer_tax_number": "CZ 123 456 789",
+}
+PLANS_CURRENCY = "USD"
+PLANS_TAXATION_POLICY = "plans.taxation.eu.EUTaxationPolicy"
+PLANS_TAX_COUNTRY = "CZ"
+PLANS_DEFAULT_COUNTRY = "CZ"
+PLANS_GET_COUNTRY_FROM_IP = True

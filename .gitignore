@@ -19,6 +19,12 @@ develop-eggs
 lib
 lib64
 
+# Python
+*.sw[po]
+
+# Git
+*.orig
+
 # Installer logs
 pip-log.txt
 
