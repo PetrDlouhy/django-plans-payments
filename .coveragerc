@@ -1,12 +1,14 @@
 [run]
 branch = true
-
-[report]
 omit =
     *site-packages*
     *tests*
     *.tox*
     *migrations*
-show_missing = True
+include = plans_payments*
+plugins =
+    django_coverage_plugin
+
+[report]
 exclude_lines =
     raise NotImplementedError
