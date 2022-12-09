@@ -18,13 +18,6 @@ class Migration(migrations.Migration):
             name="autorenewed_payment",
             field=models.BooleanField(default=False),
         ),
-        migrations.AddField(
-            model_name="payment",
-            name="billing_phone",
-            field=phonenumber_field.modelfields.PhoneNumberField(
-                blank=True, max_length=128, region=None
-            ),
-        ),
         migrations.AlterField(
             model_name="payment",
             name="transaction_fee",
