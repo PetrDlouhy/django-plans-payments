@@ -65,7 +65,7 @@ class Payment(BasePayment):
                     if len(related_resources) == 1:
                         sale = related_resources[0]["sale"]
                         if "transaction_fee" in sale:
-                            self.transaction_fee += Decimal(
+                            self.transaction_fee = Decimal(
                                 sale["transaction_fee"]["value"]
                             )
                         else:

@@ -9,11 +9,14 @@ Tests for `django-plans-payments` models module.
 """
 import json
 from decimal import Decimal
+from datetime import datetime
+import pytz
 
 from django.test import TestCase
 from model_bakery import baker
 from payments import PaymentStatus
-from plans.models import Order
+from plans.models import Order, Invoice
+from freezegun import freeze_time
 
 from plans_payments import models
 
@@ -103,6 +106,34 @@ class TestPlansPayments(TestCase):
         rp = models.Payment.objects.get()
         self.assertEqual(rp.transaction_fee, Decimal("0.34"))
 
+    def test_double_save_paypal(self):
+        """
+        Save with payment varian paypal
+        multiple saves should not reult in double transaction_fee value
+        """
+        extra_data = {
+            "response": {
+                "transactions": (
+                    {
+                        "related_resources": (
+                            {
+                                "sale": {
+                                    "transaction_fee": {
+                                        "value": "0.34",
+                                    },
+                                },
+                            },
+                        ),
+                    },
+                ),
+            },
+        }
+        p = models.Payment(variant="paypal", total=Decimal("10.00"), extra_data=json.dumps(extra_data))
+        p.save()
+        p.save()
+        rp = models.Payment.objects.get()
+        self.assertEqual(rp.transaction_fee, Decimal("0.34"))
+
     def test_save_no_extra_data(self):
         p = models.Payment()
         p.save()
@@ -186,6 +217,28 @@ class TestPlansPayments(TestCase):
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "confirmed")
         self.assertEqual(recurring_user_plan.token_verified, True)
+
+    @freeze_time("2018-01-01")
+    def test_change_payment_status_confirmed_double_submit(self):
+        """Test double submit of payment status_changed signal"""
+        p = models.Payment(
+            order=baker.make("Order", status=Order.STATUS.NEW),
+            status=PaymentStatus.CONFIRMED,
+        )
+        userplan = baker.make("UserPlan", user=p.order.user)
+        baker.make("BillingInfo", user=p.order.user)
+        baker.make("RecurringUserPlan", user_plan=userplan)
+        models.change_payment_status("sender", instance=p)
+        self.assertEqual(p.order.completed, datetime(2018, 1, 1, 0, 0, tzinfo=pytz.UTC))
+
+        # Switch order back to new to simulate concurrent double submit
+        p.status = PaymentStatus.REJECTED
+
+        with freeze_time("2018-01-02"):
+            models.change_payment_status("sender", instance=p)
+        self.assertEqual(p.order.completed, datetime(2018, 1, 1, 0, 0, tzinfo=pytz.UTC))
+        # Only one Invoice was created
+        self.assertEqual(Invoice.objects.count(), 1)
 
     def test_change_payment_status_rejected(self):
         p = models.Payment(
