@@ -2,6 +2,7 @@ coverage
 django-coverage-plugin
 mock>=1.0.1
 flake8>=2.1.0
+freezegun
 tox>=1.7.0
 codecov>=2.0.0
 isort
