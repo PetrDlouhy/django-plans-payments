@@ -3,6 +3,11 @@
 History
 -------
 
+1.1.1 (2023-01-27)
+++++++++++++++++++
+
+* correction release, include wheel update, correctly rebase to master
+
 1.1.0 (2023-01-27)
 ++++++++++++++++++
 
