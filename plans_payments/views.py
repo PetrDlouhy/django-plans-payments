@@ -43,7 +43,7 @@ def create_payment_object(
     return Payment.objects.create(
         variant=payment_variant,
         order=order,
-        description="Subscription plan %s purchase" % order.name,
+        description=f"{order.name} %s purchase",
         total=Decimal(order.total()),
         tax=Decimal(order.tax_total()),
         currency=order.currency,
