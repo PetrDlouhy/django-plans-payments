@@ -3,6 +3,11 @@
 History
 -------
 
+1.1.2 (2023-03-29)
+++++++++++++++++++
+
+* reword Payment description to ommit word "Subscribtion" which might raise warnings for banks/card providers
+
 1.1.1 (2023-01-27)
 ++++++++++++++++++
 
