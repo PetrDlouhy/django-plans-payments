@@ -37,6 +37,12 @@ class Payment(BasePayment):
         default=False,
     )
 
+    class Meta:
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["status", "transaction_id"]),
+        ]
+
     def clean(self):
         if self.order.status == Order.STATUS.COMPLETED:
             confirmed_payment_count = self.order.payment_set.exclude(pk=self.pk)
