@@ -5,7 +5,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("plans_payments", "0003_auto_20201006_0855"),
     ]
