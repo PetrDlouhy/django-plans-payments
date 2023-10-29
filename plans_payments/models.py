@@ -143,7 +143,7 @@ class Payment(BasePayment):
         )
 
 
-@receiver(status_changed)
+@receiver(status_changed, sender=Payment)
 def change_payment_status(sender, *args, **kwargs):
     payment = kwargs["instance"]
     order = payment.order
