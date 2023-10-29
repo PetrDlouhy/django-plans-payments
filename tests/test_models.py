@@ -285,3 +285,17 @@ class TestPlansPayments(TestCase):
         )
         models.renew_accounts("sender", user, p)
         self.assertEqual(p.autorenewed_payment, False)
+
+    def test_change_payment_status_called(self):
+        """ test that change_payment_status receiver is executed when Payment.change_status is called
+            NOTE: directly patching `change_payment_status` receiver is not working
+            in this case, so we just check that `Order.status` was changed to `canceled`
+        """
+
+        user = baker.make("User")
+        baker.make("UserPlan", user=user)
+        p = baker.make("Payment", variant="default", order__user=user)
+
+        self.assertNotEqual(p.order, Order.STATUS.CANCELED)
+        p.change_status(PaymentStatus.REJECTED)
+        self.assertEqual(p.order.status, Order.STATUS.CANCELED)
