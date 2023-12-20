@@ -3,6 +3,16 @@
 History
 -------
 
+1.2.2 (2023-12-20)
+++++++++++++++++++
+
+* add change_reason for django-simple-history
+
+1.2.1 (2023-12-19)
+++++++++++++++++++
+
+* specify sender=Payment for change_payment_status receiver
+
 1.2.0 (2023-10-16)
 ++++++++++++++++++
 
