@@ -158,6 +158,8 @@ def change_payment_status(sender, *args, **kwargs):
         PaymentStatus.INPUT,
     ):
         order.status = Order.STATUS.CANCELED
+        # In case django-simples-history is installed
+        order._change_reason = f"Django-plans-payments: Payment status changed to {payment.status}"
         order.save()
         if hasattr(order.user.userplan, "recurring"):
             order.user.userplan.recurring.token_verified = False
