@@ -208,6 +208,7 @@ class TestPlansPayments(TestCase):
         p = models.Payment(order=baker.make("Order", status=Order.STATUS.NEW))
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "waiting")
+        self.assertEqual(p.order.status, Order.STATUS.NEW)
 
     def test_change_payment_status_confirmed(self):
         p = models.Payment(
@@ -219,6 +220,7 @@ class TestPlansPayments(TestCase):
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "confirmed")
         self.assertEqual(recurring_user_plan.token_verified, True)
+        self.assertEqual(p.order.status, Order.STATUS.COMPLETED)
 
     @freeze_time("2018-01-01")
     def test_change_payment_status_confirmed_double_submit(self):
@@ -251,6 +253,37 @@ class TestPlansPayments(TestCase):
         baker.make("RecurringUserPlan", user_plan=userplan)
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "rejected")
+        self.assertEqual(p.order.status, Order.STATUS.CANCELED)
+
+    def test_change_payment_status_rejected_order_completed(self):
+        p = models.Payment(
+            order=baker.make("Order", status=Order.STATUS.COMPLETED),
+            status=PaymentStatus.REJECTED,
+        )
+        baker.make("UserPlan", user=p.order.user)
+        models.change_payment_status("sender", instance=p)
+        self.assertEqual(p.status, "rejected")
+        self.assertEqual(p.order.status, Order.STATUS.COMPLETED)
+
+    def test_change_payment_status_refunded(self):
+        p = models.Payment(
+            order=baker.make("Order", status=Order.STATUS.COMPLETED),
+            status=PaymentStatus.REFUNDED,
+        )
+        baker.make("UserPlan", user=p.order.user)
+        models.change_payment_status("sender", instance=p)
+        self.assertEqual(p.status, "refunded")
+        self.assertEqual(p.order.status, Order.STATUS.COMPLETED)
+
+    def test_change_payment_status_refunded_order_not_valid(self):
+        p = models.Payment(
+            order=baker.make("Order", status=Order.STATUS.NOT_VALID),
+            status=PaymentStatus.REFUNDED,
+        )
+        baker.make("UserPlan", user=p.order.user)
+        models.change_payment_status("sender", instance=p)
+        self.assertEqual(p.status, "refunded")
+        self.assertEqual(p.order.status, Order.STATUS.CANCELED)
 
     def test_change_payment_status_confirmed_no_recurring(self):
         p = models.Payment(
@@ -260,6 +293,7 @@ class TestPlansPayments(TestCase):
         baker.make("UserPlan", user=p.order.user)
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "confirmed")
+        self.assertEqual(p.order.status, Order.STATUS.COMPLETED)
 
     def test_renew_accounts_no_variant(self):
         p = models.Payment()
