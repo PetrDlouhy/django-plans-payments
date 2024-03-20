@@ -152,7 +152,15 @@ def change_payment_status(sender, *args, **kwargs):
             order.user.userplan.recurring.token_verified = True
             order.user.userplan.recurring.save()
         order.complete_order()
-    if order.status != Order.STATUS.COMPLETED and payment.status not in (
+    if (
+        getattr(settings, "PLANS_PAYMENTS_RETURN_ORDER_WHEN_PAYMENT_REFUNDED", False)
+        and payment.status == PaymentStatus.REFUNDED
+    ):
+        order._change_reason = (
+            f"Django-plans-payments: Payment status changed to {payment.status}"
+        )
+        order.return_order()
+    elif order.status != Order.STATUS.COMPLETED and payment.status not in (
         PaymentStatus.CONFIRMED,
         PaymentStatus.WAITING,
         PaymentStatus.INPUT,
