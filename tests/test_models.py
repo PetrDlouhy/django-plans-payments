@@ -12,7 +12,7 @@ from datetime import datetime
 from decimal import Decimal
 
 import pytz
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from freezegun import freeze_time
 from model_bakery import baker
 from payments import PaymentStatus
@@ -275,6 +275,17 @@ class TestPlansPayments(TestCase):
         self.assertEqual(p.status, "refunded")
         self.assertEqual(p.order.status, Order.STATUS.COMPLETED)
 
+    @override_settings(PLANS_PAYMENTS_RETURN_ORDER_WHEN_PAYMENT_REFUNDED=True)
+    def test_change_payment_status_refunded_return_enabled(self):
+        p = models.Payment(
+            order=baker.make("Order", status=Order.STATUS.COMPLETED),
+            status=PaymentStatus.REFUNDED,
+        )
+        baker.make("UserPlan", user=p.order.user)
+        models.change_payment_status("sender", instance=p)
+        self.assertEqual(p.status, "refunded")
+        self.assertEqual(p.order.status, Order.STATUS.RETURNED)
+
     def test_change_payment_status_refunded_order_not_valid(self):
         p = models.Payment(
             order=baker.make("Order", status=Order.STATUS.NOT_VALID),
@@ -282,6 +293,44 @@ class TestPlansPayments(TestCase):
         )
         baker.make("UserPlan", user=p.order.user)
         models.change_payment_status("sender", instance=p)
+        self.assertEqual(p.status, "refunded")
+        self.assertEqual(p.order.status, Order.STATUS.CANCELED)
+
+    @override_settings(PLANS_PAYMENTS_RETURN_ORDER_WHEN_PAYMENT_REFUNDED=True)
+    def test_change_payment_status_refunded_order_not_valid_return_enabled(self):
+        p = models.Payment(
+            order=baker.make("Order", status=Order.STATUS.NOT_VALID),
+            status=PaymentStatus.REFUNDED,
+        )
+        baker.make("UserPlan", user=p.order.user)
+        models.change_payment_status("sender", instance=p)
+        self.assertEqual(p.status, "refunded")
+        self.assertEqual(p.order.status, Order.STATUS.RETURNED)
+
+    # This should not happen practically but with Django Admin, anything can happen...
+    def test_change_payment_status_refunded_order_canceled(self):
+        p = models.Payment(
+            order=baker.make("Order", status=Order.STATUS.CANCELED),
+            status=PaymentStatus.REFUNDED,
+        )
+        baker.make("UserPlan", user=p.order.user)
+        models.change_payment_status("sender", instance=p)
+        self.assertEqual(p.status, "refunded")
+        self.assertEqual(p.order.status, Order.STATUS.CANCELED)
+
+    # This should not happen practically but with Django Admin, anything can happen...
+    @override_settings(PLANS_PAYMENTS_RETURN_ORDER_WHEN_PAYMENT_REFUNDED=True)
+    def test_change_payment_status_refunded_order_canceled_return_enabled(self):
+        p = models.Payment(
+            order=baker.make("Order", status=Order.STATUS.CANCELED),
+            status=PaymentStatus.REFUNDED,
+        )
+        baker.make("UserPlan", user=p.order.user)
+        with self.assertRaisesRegex(
+            ValueError,
+            r"^Cannot return order with status other than COMPLETED and NOT_VALID: 4$",
+        ):
+            models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "refunded")
         self.assertEqual(p.order.status, Order.STATUS.CANCELED)
 
