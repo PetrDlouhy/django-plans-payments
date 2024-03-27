@@ -152,14 +152,28 @@ def change_payment_status(sender, *args, **kwargs):
             order.user.userplan.recurring.token_verified = True
             order.user.userplan.recurring.save()
         order.complete_order()
-    if order.status != Order.STATUS.COMPLETED and payment.status not in (
+    if (
+        getattr(settings, "PLANS_PAYMENTS_RETURN_ORDER_WHEN_PAYMENT_REFUNDED", False)
+        and payment.status == PaymentStatus.REFUNDED
+    ):
+        order._change_reason = (
+            f"Django-plans-payments: Payment status changed to {payment.status}"
+        )
+        try:
+            order.return_order()
+        except ValueError:
+            logger.exception("Failed to return the order: %s", order.pk)
+            return
+    elif order.status != Order.STATUS.COMPLETED and payment.status not in (
         PaymentStatus.CONFIRMED,
         PaymentStatus.WAITING,
         PaymentStatus.INPUT,
     ):
         order.status = Order.STATUS.CANCELED
         # In case django-simples-history is installed
-        order._change_reason = f"Django-plans-payments: Payment status changed to {payment.status}"
+        order._change_reason = (
+            f"Django-plans-payments: Payment status changed to {payment.status}"
+        )
         order.save()
         if hasattr(order.user.userplan, "recurring"):
             order.user.userplan.recurring.token_verified = False
