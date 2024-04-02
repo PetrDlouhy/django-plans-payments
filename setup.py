@@ -57,7 +57,7 @@ setup(
     ],
     include_package_data=True,
     install_requires=[
-        "django-plans>=1.0.7",
+        "django-plans>=1.1.0",
         "django-payments",
     ],
     license="MIT",

@@ -1,6 +1,6 @@
 
 # Additional requirements go here
 
-django-plans>=1.0.7
+django-plans>=1.1.0
 django-payments
 django-related-admin
