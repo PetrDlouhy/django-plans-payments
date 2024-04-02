@@ -1,5 +1,6 @@
 import json
 import logging
+import warnings
 from decimal import Decimal
 from urllib.parse import urljoin
 
@@ -12,6 +13,7 @@ from payments import PaymentStatus, PurchasedItem
 from payments.core import get_base_url
 from payments.models import BasePayment
 from payments.signals import status_changed
+from plans.base.models import AbstractRecurringUserPlan
 from plans.contrib import get_user_language, send_template_email
 from plans.models import Order
 from plans.signals import account_automatic_renewal
@@ -125,13 +127,43 @@ class Payment(BasePayment):
         card_expire_year=None,
         card_expire_month=None,
         card_masked_number=None,
-        automatic_renewal=True,
+        # TODO: automatic_renewal deprecated. Remove in the next major release.
+        automatic_renewal=None,
+        # TODO: renewal_triggered_by=None deprecated. Set to TASK in the next major release.
+        renewal_triggered_by=None,
     ):
         """
         Store the recurring payments renew token for user of this payment
         The renew token is string defined by the provider
         Used by PayU provider for now
         """
+        if automatic_renewal is None and renewal_triggered_by is None:
+            automatic_renewal = True
+        if automatic_renewal is not None:
+            warnings.warn(
+                "automatic_renewal is deprecated. Use renewal_triggered_by instead.",
+                DeprecationWarning,
+            )
+        if renewal_triggered_by == "user":
+            renewal_triggered_by = AbstractRecurringUserPlan.RENEWAL_TRIGGERED_BY.USER
+        elif renewal_triggered_by == "task":
+            renewal_triggered_by = AbstractRecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK
+        elif renewal_triggered_by == "other":
+            renewal_triggered_by = AbstractRecurringUserPlan.RENEWAL_TRIGGERED_BY.OTHER
+        elif renewal_triggered_by is None:
+            warnings.warn(
+                "renewal_triggered_by=None is deprecated. "
+                "Set an AbstractRecurringUserPlan.RENEWAL_TRIGGERED_BY instead.",
+                DeprecationWarning,
+            )
+            renewal_triggered_by = (
+                AbstractRecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK
+                if automatic_renewal
+                else AbstractRecurringUserPlan.RENEWAL_TRIGGERED_BY.USER
+            )
+        else:
+            raise ValueError(f"Invalid renewal_triggered_by: {renewal_triggered_by}")
+
         self.order.user.userplan.set_plan_renewal(
             order=self.order,
             token=token,
@@ -139,7 +171,7 @@ class Payment(BasePayment):
             card_expire_year=card_expire_year,
             card_expire_month=card_expire_month,
             card_masked_number=card_masked_number,
-            has_automatic_renewal=automatic_renewal,
+            renewal_triggered_by=renewal_triggered_by,
         )
 
 
@@ -181,7 +213,8 @@ def renew_accounts(sender, user, *args, **kwargs):
     userplan = user.userplan
     if (
         userplan.recurring.payment_provider in settings.PAYMENT_VARIANTS
-        and userplan.recurring.has_automatic_renewal
+        and userplan.recurring.renewal_triggered_by
+        == AbstractRecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK
     ):
         order = userplan.recurring.create_renew_order()
 

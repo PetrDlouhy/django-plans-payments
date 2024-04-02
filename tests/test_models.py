@@ -8,6 +8,7 @@ test_django-plans-payments
 Tests for `django-plans-payments` models module.
 """
 import json
+import warnings
 from datetime import datetime
 from decimal import Decimal
 
@@ -16,7 +17,7 @@ from django.test import TestCase, override_settings
 from freezegun import freeze_time
 from model_bakery import baker
 from payments import PaymentStatus
-from plans.models import Invoice, Order
+from plans.models import Invoice, Order, RecurringUserPlan
 
 from plans_payments import models
 
@@ -187,22 +188,140 @@ class TestPlansPayments(TestCase):
         )
         self.assertEqual(p.get_renew_token(), "token")
 
-    def test_set_renew_token(self):
+    def test_set_renew_token_task(self):
         user = baker.make("User")
         p = models.Payment(order=baker.make("Order", user=user))
         userplan = baker.make("UserPlan", user=user)
-        p.set_renew_token(
-            "token",
-            card_expire_year=2020,
-            card_expire_month=12,
-            card_masked_number="1234",
-            automatic_renewal=True,
-        )
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+            p.set_renew_token(
+                "token",
+                card_expire_year=2020,
+                card_expire_month=12,
+                card_masked_number="1234",
+                renewal_triggered_by="task",
+            )
         self.assertEqual(userplan.recurring.token, "token")
         self.assertEqual(userplan.recurring.card_expire_year, 2020)
         self.assertEqual(userplan.recurring.card_expire_month, 12)
         self.assertEqual(userplan.recurring.card_masked_number, "1234")
-        self.assertEqual(userplan.recurring.has_automatic_renewal, True)
+        self.assertEqual(
+            userplan.recurring.renewal_triggered_by,
+            RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
+        )
+        self.assertFalse(caught_warnings)
+
+    def test_set_renew_token_other(self):
+        user = baker.make("User")
+        p = models.Payment(order=baker.make("Order", user=user))
+        userplan = baker.make("UserPlan", user=user)
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+            p.set_renew_token(
+                "token",
+                card_expire_year=2020,
+                card_expire_month=12,
+                card_masked_number="1234",
+                renewal_triggered_by="other",
+            )
+        self.assertEqual(userplan.recurring.token, "token")
+        self.assertEqual(userplan.recurring.card_expire_year, 2020)
+        self.assertEqual(userplan.recurring.card_expire_month, 12)
+        self.assertEqual(userplan.recurring.card_masked_number, "1234")
+        self.assertEqual(
+            userplan.recurring.renewal_triggered_by,
+            RecurringUserPlan.RENEWAL_TRIGGERED_BY.OTHER,
+        )
+        self.assertFalse(caught_warnings)
+
+    def test_set_renew_token_user(self):
+        user = baker.make("User")
+        p = models.Payment(order=baker.make("Order", user=user))
+        userplan = baker.make("UserPlan", user=user)
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+            p.set_renew_token(
+                "token",
+                card_expire_year=2020,
+                card_expire_month=12,
+                card_masked_number="1234",
+                renewal_triggered_by="user",
+            )
+        self.assertEqual(userplan.recurring.token, "token")
+        self.assertEqual(userplan.recurring.card_expire_year, 2020)
+        self.assertEqual(userplan.recurring.card_expire_month, 12)
+        self.assertEqual(userplan.recurring.card_masked_number, "1234")
+        self.assertEqual(
+            userplan.recurring.renewal_triggered_by,
+            RecurringUserPlan.RENEWAL_TRIGGERED_BY.USER,
+        )
+        self.assertFalse(caught_warnings)
+
+    def test_set_renew_token_none_automatic_renewal_true(self):
+        user = baker.make("User")
+        p = models.Payment(order=baker.make("Order", user=user))
+        userplan = baker.make("UserPlan", user=user)
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+            p.set_renew_token(
+                "token",
+                card_expire_year=2020,
+                card_expire_month=12,
+                card_masked_number="1234",
+                automatic_renewal=True,
+            )
+        self.assertEqual(userplan.recurring.token, "token")
+        self.assertEqual(userplan.recurring.card_expire_year, 2020)
+        self.assertEqual(userplan.recurring.card_expire_month, 12)
+        self.assertEqual(userplan.recurring.card_masked_number, "1234")
+        self.assertEqual(
+            userplan.recurring.renewal_triggered_by,
+            RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
+        )
+        self.assertEqual(len(caught_warnings), 2)
+        self.assertTrue(issubclass(caught_warnings[0].category, DeprecationWarning))
+        self.assertEqual(
+            str(caught_warnings[0].message),
+            "automatic_renewal is deprecated. Use renewal_triggered_by instead.",
+        )
+        self.assertTrue(issubclass(caught_warnings[1].category, DeprecationWarning))
+        self.assertEqual(
+            str(caught_warnings[1].message),
+            "renewal_triggered_by=None is deprecated. Set an AbstractRecurringUserPlan.RENEWAL_TRIGGERED_BY instead.",
+        )
+
+    def test_set_renew_token_none_automatic_renewal_false(self):
+        user = baker.make("User")
+        p = models.Payment(order=baker.make("Order", user=user))
+        userplan = baker.make("UserPlan", user=user)
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+            p.set_renew_token(
+                "token",
+                card_expire_year=2020,
+                card_expire_month=12,
+                card_masked_number="1234",
+                automatic_renewal=False,
+            )
+        self.assertEqual(userplan.recurring.token, "token")
+        self.assertEqual(userplan.recurring.card_expire_year, 2020)
+        self.assertEqual(userplan.recurring.card_expire_month, 12)
+        self.assertEqual(userplan.recurring.card_masked_number, "1234")
+        self.assertEqual(
+            userplan.recurring.renewal_triggered_by,
+            RecurringUserPlan.RENEWAL_TRIGGERED_BY.USER,
+        )
+        self.assertEqual(len(caught_warnings), 2)
+        self.assertTrue(issubclass(caught_warnings[0].category, DeprecationWarning))
+        self.assertEqual(
+            str(caught_warnings[0].message),
+            "automatic_renewal is deprecated. Use renewal_triggered_by instead.",
+        )
+        self.assertTrue(issubclass(caught_warnings[1].category, DeprecationWarning))
+        self.assertEqual(
+            str(caught_warnings[1].message),
+            "renewal_triggered_by=None is deprecated. Set an AbstractRecurringUserPlan.RENEWAL_TRIGGERED_BY instead.",
+        )
 
     def test_change_payment_status(self):
         p = models.Payment(order=baker.make("Order", status=Order.STATUS.NEW))
@@ -351,13 +470,15 @@ class TestPlansPayments(TestCase):
         baker.make(
             "RecurringUserPlan",
             user_plan=userplan,
-            renewal_trigger=RecurringUserPlan.RENEWAL_TRIGGER.TASK,
-            has_automatic_renewal=True,
+            renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
         )
-        models.renew_accounts("sender", user, p)
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+            models.renew_accounts("sender", user, p)
         self.assertEqual(p.autorenewed_payment, False)
         self.assertFalse(Order.objects.exists())
         self.assertFalse(models.Payment.objects.exclude(id=p.id).exists())
+        self.assertFalse(caught_warnings)
 
     def test_renew_accounts(self):
         p = baker.make("Payment", variant="default", order__amount=12)
@@ -369,11 +490,13 @@ class TestPlansPayments(TestCase):
             "RecurringUserPlan",
             user_plan=userplan,
             payment_provider="default",
-            has_automatic_renewal=True,
+            renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
             amount=14,
             pricing=plan_pricing.pricing,
         )
-        models.renew_accounts("sender", user, p)
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+            models.renew_accounts("sender", user, p)
         (order_renewed,) = Order.objects.exclude(id=p.order.id)
         (payment_renewed,) = models.Payment.objects.exclude(id=p.id)
         self.assertEqual(p.autorenewed_payment, False)
@@ -384,6 +507,43 @@ class TestPlansPayments(TestCase):
         self.assertEqual(payment_renewed.order, order_renewed)
         self.assertEqual(payment_renewed.variant, "default")
         self.assertTrue(payment_renewed.autorenewed_payment)
+        self.assertFalse(caught_warnings)
+
+    def test_renew_accounts_user(self):
+        p = models.Payment(variant="default")
+        user = baker.make("User")
+        userplan = baker.make("UserPlan", user=user)
+        baker.make(
+            "RecurringUserPlan",
+            user_plan=userplan,
+            payment_provider="default",
+            renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.USER,
+        )
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+            models.renew_accounts("sender", user, p)
+        self.assertEqual(p.autorenewed_payment, False)
+        self.assertFalse(Order.objects.exists())
+        self.assertFalse(models.Payment.objects.exclude(id=p.id).exists())
+        self.assertFalse(caught_warnings)
+
+    def test_renew_accounts_other(self):
+        p = models.Payment(variant="default")
+        user = baker.make("User")
+        userplan = baker.make("UserPlan", user=user)
+        baker.make(
+            "RecurringUserPlan",
+            user_plan=userplan,
+            payment_provider="default",
+            renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.OTHER,
+        )
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+            models.renew_accounts("sender", user, p)
+        self.assertEqual(p.autorenewed_payment, False)
+        self.assertFalse(Order.objects.exists())
+        self.assertFalse(models.Payment.objects.exclude(id=p.id).exists())
+        self.assertFalse(caught_warnings)
 
     def test_change_payment_status_called(self):
         """test that change_payment_status receiver is executed when Payment.change_status is called
