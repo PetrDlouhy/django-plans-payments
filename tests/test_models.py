@@ -348,9 +348,16 @@ class TestPlansPayments(TestCase):
         p = models.Payment()
         user = baker.make("User")
         userplan = baker.make("UserPlan", user=user)
-        baker.make("RecurringUserPlan", user_plan=userplan)
+        baker.make(
+            "RecurringUserPlan",
+            user_plan=userplan,
+            renewal_trigger=RecurringUserPlan.RENEWAL_TRIGGER.TASK,
+            has_automatic_renewal=True,
+        )
         models.renew_accounts("sender", user, p)
         self.assertEqual(p.autorenewed_payment, False)
+        self.assertFalse(Order.objects.exists())
+        self.assertFalse(models.Payment.objects.exclude(id=p.id).exists())
 
     def test_renew_accounts(self):
         p = baker.make("Payment", variant="default", order__amount=12)
@@ -367,7 +374,16 @@ class TestPlansPayments(TestCase):
             pricing=plan_pricing.pricing,
         )
         models.renew_accounts("sender", user, p)
+        (order_renewed,) = Order.objects.exclude(id=p.order.id)
+        (payment_renewed,) = models.Payment.objects.exclude(id=p.id)
         self.assertEqual(p.autorenewed_payment, False)
+        self.assertEqual(order_renewed.plan, plan_pricing.plan)
+        self.assertEqual(order_renewed.pricing, plan_pricing.pricing)
+        self.assertEqual(order_renewed.amount, Decimal(14))
+        self.assertEqual(order_renewed.user, user)
+        self.assertEqual(payment_renewed.order, order_renewed)
+        self.assertEqual(payment_renewed.variant, "default")
+        self.assertTrue(payment_renewed.autorenewed_payment)
 
     def test_change_payment_status_called(self):
         """test that change_payment_status receiver is executed when Payment.change_status is called
