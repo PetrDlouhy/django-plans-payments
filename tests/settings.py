@@ -1,6 +1,8 @@
 # -*- coding: utf-8
 from typing import Dict, Tuple
 
+import django
+
 DEBUG = True
 USE_TZ = True
 
@@ -74,3 +76,6 @@ PLANS_TAXATION_POLICY = "plans.taxation.eu.EUTaxationPolicy"
 PLANS_TAX_COUNTRY = "CZ"
 PLANS_DEFAULT_COUNTRY = "CZ"
 PLANS_GET_COUNTRY_FROM_IP = True
+
+if django.VERSION >= (4, 1):
+    FORM_RENDERER = "django.forms.renderers.DjangoDivFormRenderer"
