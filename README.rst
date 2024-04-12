@@ -5,8 +5,8 @@ Django plans payments
 .. image:: https://badge.fury.io/py/django-plans-payments.svg
     :target: https://badge.fury.io/py/django-plans-payments
 
-.. image:: https://travis-ci.org/PetrDlouhy/django-plans-payments.svg?branch=master
-    :target: https://travis-ci.org/PetrDlouhy/django-plans-payments
+.. image:: https://github.com/PetrDlouhy/django-plans-payments/actions/workflows/main.yml/badge.svg
+    :target: https://github.com/PetrDlouhy/django-plans-payments/actions/workflows/main.yml
 
 .. image:: https://codecov.io/gh/PetrDlouhy/django-plans-payments/branch/master/graph/badge.svg
     :target: https://codecov.io/gh/PetrDlouhy/django-plans-payments
