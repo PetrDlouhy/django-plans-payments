@@ -3,7 +3,7 @@
 History
 -------
 
-1.3.0 (Unreleased)
+1.3.0 (2024-04-12)
 ++++++++++++++++++
 
 * add optional returning orders when payments are refunded
