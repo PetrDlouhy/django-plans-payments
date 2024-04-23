@@ -3,6 +3,11 @@
 History
 -------
 
+1.4.1 (Unreleased)
+++++++++++++++++++
+
+* do not check whether a confirmed payment of a completed order is left anymore
+
 1.4.0 (2024-04-15)
 ++++++++++++++++++
 

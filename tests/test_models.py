@@ -26,30 +26,6 @@ class TestPlansPayments(TestCase):
     def setUp(self):
         pass
 
-    def test_clean(self):
-        p = models.Payment(order=baker.make("Order", status=Order.STATUS.NEW))
-        p.clean()
-        self.assertEqual(p.status, "waiting")
-
-    def test_clean_completed(self):
-        p = models.Payment(
-            order=baker.make("Order", status=Order.STATUS.COMPLETED),
-            status=PaymentStatus.CONFIRMED,
-        )
-        p.clean()
-        self.assertEqual(p.status, "confirmed")
-
-    def test_clean_completed_no_confirmed_payment(self):
-        p = models.Payment(
-            order=baker.make("Order", status=Order.STATUS.COMPLETED),
-            status=PaymentStatus.WAITING,
-        )
-        with self.assertRaisesRegex(
-            Exception, "Can't leave confirmed order without any confirmed payment."
-        ):
-            p.clean()
-        self.assertEqual(p.status, "waiting")
-
     def test_save(self):
         p = models.Payment(transaction_fee=1)
         p.save()

@@ -5,7 +5,7 @@ from decimal import Decimal
 from urllib.parse import urljoin
 
 from django.conf import settings
-from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 from django.dispatch.dispatcher import receiver
 from django.urls import reverse
@@ -44,20 +44,6 @@ class Payment(BasePayment):
             models.Index(fields=["status"]),
             models.Index(fields=["status", "transaction_id"]),
         ]
-
-    def clean(self):
-        if self.order.status == Order.STATUS.COMPLETED:
-            confirmed_payment_count = self.order.payment_set.exclude(pk=self.pk)
-            confirmed_payment_count = confirmed_payment_count.filter(
-                status=PaymentStatus.CONFIRMED
-            ).count()
-            if self.status != PaymentStatus.CONFIRMED and confirmed_payment_count == 0:
-                raise ValidationError(
-                    {
-                        "status": "Can't leave confirmed order without any confirmed payment. "
-                        "Please change Order first if you still want to perform this change.",
-                    },
-                )
 
     def save(self, **kwargs):
         if "payu" in self.variant:
