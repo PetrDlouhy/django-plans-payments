@@ -9,7 +9,7 @@ History
 * Drop support for Python 3.7
 * fix the wrong assumption that ``Payment.extra_data["response"]`` contains a ``"transactions"`` key
 
-1.4.1 (Unreleased)
+1.4.1 (2024-04-24)
 ++++++++++++++++++
 
 * do not check whether a confirmed payment of a completed order is left anymore
