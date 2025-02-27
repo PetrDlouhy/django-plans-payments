@@ -143,6 +143,38 @@ class TestPlansPayments(TestCase):
         rp = models.Payment.objects.get()
         self.assertEqual(rp.transaction_fee, Decimal("0.0"))
 
+    def test_save_extra_data_no_transactions(self):
+        p = models.Payment()
+        p.transaction_fee = Decimal("0.34")
+        p.extra_data = json.dumps({"response": {"foo": "bar"}})
+
+        # TODO: In Python 3.10+: Replace with assertNoLogs
+        with self.assertRaisesRegex(
+            AssertionError,
+            r"^no logs of level DEBUG or higher triggered on plans_payments.models$",
+        ):
+            with self.assertLogs(logger="plans_payments.models", level="DEBUG"):
+                p.save()
+
+        self.assertEqual(
+            models.Payment.objects.values_list("transaction_fee", flat=True).get(),
+            Decimal("0.34"),
+        )
+
+    def test_save_extra_data_no_transactions_no_transaction_fee(self):
+        p = models.Payment()
+        p.extra_data = json.dumps({"response": {"foo": "bar"}})
+
+        with self.assertLogs(logger="plans_payments.models", level="WARNING") as logs:
+            p.save()
+
+        self.assertIn(
+            "WARNING:plans_payments.models:Payment fee not included", logs.output
+        )
+        self.assertFalse(
+            models.Payment.objects.values_list("transaction_fee", flat=True).get()
+        )
+
     def tearDown(self):
         pass
 

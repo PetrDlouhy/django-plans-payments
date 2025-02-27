@@ -3,6 +3,11 @@
 History
 -------
 
+1.4.2 (Unreleased)
+++++++++++++++++++
+
+* fix the wrong assumption that ``Payment.extra_data["response"]`` contains a ``"transactions"`` key
+
 1.4.1 (Unreleased)
 ++++++++++++++++++
 
@@ -11,10 +16,10 @@ History
 1.4.0 (2024-04-15)
 ++++++++++++++++++
 
-* migrate to `RecurringUserPlan.renewal_triggered_by`
-* add `renewal_triggered_by` parameter to `Payment.set_renew_token`
-* deprecate `automatic_renewal` parameter of `Payment.set_renew_token`; use `renewal_triggered_by` parameter instead
-* deprecate `None` value of `renewal_triggered_by` parameter of `Payment.set_renew_token`; set an `AbstractRecurringUserPlan.RENEWAL_TRIGGERED_BY` instead
+* migrate to ``RecurringUserPlan.renewal_triggered_by``
+* add ``renewal_triggered_by`` parameter to ``Payment.set_renew_token``
+* deprecate ``automatic_renewal`` parameter of ``Payment.set_renew_token``; use ``renewal_triggered_by`` parameter instead
+* deprecate ``None`` value of ``renewal_triggered_by`` parameter of ``Payment.set_renew_token``; set an ``AbstractRecurringUserPlan.RENEWAL_TRIGGERED_BY`` instead
 
 1.3.1 (2024-04-15)
 ++++++++++++++++++
