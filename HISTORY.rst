@@ -3,6 +3,11 @@
 History
 -------
 
+2.0.0 (Unreleased)
+++++++++++++++++++
+
+* Drop support for Python 3.7
+
 1.4.1 (Unreleased)
 ++++++++++++++++++
 
