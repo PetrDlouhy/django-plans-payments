@@ -7,6 +7,7 @@ History
 ++++++++++++++++++
 
 * Drop support for Python 3.7
+* Add support for Python 3.13, Django 5.1
 * fix the wrong assumption that ``Payment.extra_data["response"]`` contains a ``"transactions"`` key
 
 1.4.1 (2024-04-24)
