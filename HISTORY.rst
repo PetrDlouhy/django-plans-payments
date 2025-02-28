@@ -3,9 +3,10 @@
 History
 -------
 
-1.4.2 (Unreleased)
+2.0.0 (Unreleased)
 ++++++++++++++++++
 
+* Drop support for Python 3.7
 * fix the wrong assumption that ``Payment.extra_data["response"]`` contains a ``"transactions"`` key
 
 1.4.1 (Unreleased)
