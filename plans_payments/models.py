@@ -53,22 +53,26 @@ class Payment(BasePayment):
         elif hasattr(self, "extra_data") and self.extra_data:
             extra_data = json.loads(self.extra_data)
             if "response" in extra_data:
-                transactions = extra_data["response"]["transactions"]
-                for transaction in transactions:
-                    related_resources = transaction["related_resources"]
-                    if len(related_resources) == 1:
-                        sale = related_resources[0]["sale"]
-                        if "transaction_fee" in sale:
-                            self.transaction_fee = Decimal(
-                                sale["transaction_fee"]["value"]
-                            )
-                        else:
-                            logger.warning(
-                                "Payment fee not included",
-                                extra={
-                                    "extra_data": extra_data,
-                                },
-                            )
+                transaction_fee_missing = False
+                try:
+                    transactions = extra_data["response"]["transactions"]
+                except KeyError:
+                    transaction_fee_missing = self.transaction_fee == 0
+                else:
+                    for transaction in transactions:
+                        related_resources = transaction["related_resources"]
+                        if len(related_resources) == 1:
+                            sale = related_resources[0]["sale"]
+                            if "transaction_fee" in sale:
+                                self.transaction_fee = Decimal(
+                                    sale["transaction_fee"]["value"]
+                                )
+                            else:
+                                transaction_fee_missing = True
+                if transaction_fee_missing:
+                    logger.warning(
+                        "Payment fee not included", extra={"extra_data": extra_data}
+                    )
         ret_val = super().save(**kwargs)
         return ret_val
 
