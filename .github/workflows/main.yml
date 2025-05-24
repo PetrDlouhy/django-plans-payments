@@ -22,7 +22,7 @@ jobs:
 
     strategy:
       matrix:
-        DJANGO_VERSION: ['3.2.*', '4.0.*', '4.1.*', '4.2.*', '5.0.*', '5.1.*']
+        DJANGO_VERSION: ['3.2.*', '4.0.*', '4.1.*', '4.2.*', '5.0.*', '5.1.*', '5.2.*']
         python-version: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
         exclude:
           - DJANGO_VERSION: '3.2.*'
@@ -55,6 +55,11 @@ jobs:
             python-version: '3.8'
           - DJANGO_VERSION: '5.1.*'
             python-version: '3.9'
+
+          - DJANGO_VERSION: '5.2.*'
+            python-version: '3.8'
+          - DJANGO_VERSION: '5.2.*'
+            python-version: '3.9'
       fail-fast: false
 
     services:
@@ -77,7 +82,7 @@ jobs:
         uses: actions/setup-python@v2
         with:
               python-version: ${{ matrix.python-version }}
-      - uses: actions/cache@v2
+      - uses: actions/cache@v4
         with:
           path: ~/.cache/pip
           key: ${{ hashFiles('setup.py') }}-${{ hashFiles('requirements_test.txt') }}-${{ hashFiles('requirements.txt') }}-${{ matrix.DJANGO_VERSION }}
