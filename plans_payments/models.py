@@ -2,7 +2,6 @@ import json
 import logging
 import warnings
 from decimal import Decimal
-from urllib.parse import urljoin
 
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
@@ -10,7 +9,6 @@ from django.db import models
 from django.dispatch.dispatcher import receiver
 from django.urls import reverse
 from payments import PaymentStatus, PurchasedItem
-from payments.core import get_base_url
 from payments.models import BasePayment
 from payments.signals import status_changed
 from plans.base.models import AbstractRecurringUserPlan
@@ -212,22 +210,7 @@ def renew_accounts(sender, user, *args, **kwargs):
             userplan.recurring.payment_provider, order, autorenewed_payment=True
         )
 
-        try:
-            redirect_url = payment.auto_complete_recurring()
-        except Exception as e:
-            print(f"Exceptin during automatic renewal: {e}")
-            logger.exception(
-                "Exception during account renewal",
-                extra={
-                    "payment": payment,
-                },
-            )
-            redirect_url = urljoin(
-                get_base_url(),
-                reverse(
-                    "create_order_plan", kwargs={"pk": order.get_plan_pricing().pk}
-                ),
-            )
+        redirect_url = payment.auto_complete_recurring()
 
         if redirect_url != "success":
             print("CVV2/3DS code is required, enter it at %s" % redirect_url)
