@@ -3,6 +3,14 @@
 History
 -------
 
+2.0.0 (2025-05-29)
+++++++++++++++++++
+
+* Implement the wallet logic
+* Drop support for Python 3.8, Django 4.1
+* Add support for Django 5.2
+* don't obscure Exceptions by catching them
+
 1.5.0 (2025-02-28)
 ++++++++++++++++++
 
