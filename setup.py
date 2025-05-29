@@ -5,7 +5,7 @@ import re
 import sys
 
 try:
-    from setuptools import setup
+    from setuptools import setup, find_packages
 except ImportError:
     from distutils.core import setup
 
@@ -59,9 +59,7 @@ setup(
     author="Petr Dlouhý",
     author_email="petr.dlouhy@email.cz",
     url="https://github.com/PetrDlouhy/django-plans-payments",
-    packages=[
-        "plans_payments",
-    ],
+    packages=find_packages(include=['plans_payments', 'plans_payments.*']),
     include_package_data=True,
     install_requires=get_requirements("requirements.txt"),
     license="MIT",
@@ -75,7 +73,6 @@ setup(
         "Framework :: Django :: 5.0",
         "Framework :: Django :: 5.1",
         "Intended Audience :: Developers",
-        "License :: OSI Approved :: BSD License",
         "Natural Language :: English",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.8",
