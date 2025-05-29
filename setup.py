@@ -59,7 +59,7 @@ setup(
     author="Petr Dlouhý",
     author_email="petr.dlouhy@email.cz",
     url="https://github.com/PetrDlouhy/django-plans-payments",
-    packages=find_packages(include=['plans_payments', 'plans_payments.*']),
+    packages=find_packages(include=["plans_payments", "plans_payments.*"]),
     include_package_data=True,
     install_requires=get_requirements("requirements.txt"),
     license="MIT",
