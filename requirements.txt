@@ -1,8 +1,3 @@
-
-# Additional requirements go here
-
-# change to regular django-payments after https://github.com/jazzband/django-payments/pull/217 is merged
-django-payments @ git+https://github.com/PetrDlouhy/django-payments@model-payu#egg=django-payments
-
+django-payments
 django-plans
 django-related-admin
