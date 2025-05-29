@@ -5,7 +5,7 @@ import re
 import sys
 
 try:
-    from setuptools import setup, find_packages
+    from setuptools import find_packages, setup
 except ImportError:
     from distutils.core import setup
 
