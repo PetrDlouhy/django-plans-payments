@@ -8,7 +8,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 from django.dispatch.dispatcher import receiver
 from django.urls import reverse
-from payments import PaymentStatus, PurchasedItem
+from payments import PaymentStatus, PurchasedItem, RedirectNeeded
 from payments.models import BasePayment
 from payments.signals import status_changed
 from plans.base.models import AbstractRecurringUserPlan
@@ -210,15 +210,15 @@ def renew_accounts(sender, user, *args, **kwargs):
             userplan.recurring.payment_provider, order, autorenewed_payment=True
         )
 
-        redirect_url = payment.auto_complete_recurring()
-
-        if redirect_url != "success":
-            print("CVV2/3DS code is required, enter it at %s" % redirect_url)
+        try:
+            payment.autocomplete_with_wallet()
+        except RedirectNeeded as redirect_to:
+            print("CVV2/3DS code is required, enter it at %s" % str(redirect_to))
             send_template_email(
                 [payment.order.user.email],
                 "mail/renew_cvv_3ds_title.txt",
                 "mail/renew_cvv_3ds_body.txt",
-                {"redirect_url": redirect_url},
+                {"redirect_url": str(redirect_to)},
                 get_user_language(payment.order.user),
             )
         if payment.status == PaymentStatus.CONFIRMED:
