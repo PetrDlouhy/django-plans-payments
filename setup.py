@@ -44,6 +44,13 @@ if sys.argv[-1] == "tag":
 readme = open("README.rst").read()
 history = open("HISTORY.rst").read().replace(".. :changelog:", "")
 
+
+def get_requirements(file_path):
+    """Reads requirements from a file."""
+    with open(file_path) as f:
+        return [line.strip() for line in f if line.strip() and not line.startswith("#")]
+
+
 setup(
     name="django-plans-payments",
     version=version,
@@ -56,10 +63,7 @@ setup(
         "plans_payments",
     ],
     include_package_data=True,
-    install_requires=[
-        "django-plans>=1.1.0",
-        "django-payments",
-    ],
+    install_requires=get_requirements("requirements.txt"),
     license="MIT",
     zip_safe=False,
     keywords="django-plans-payments",
