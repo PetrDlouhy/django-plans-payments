@@ -218,7 +218,11 @@ def renew_accounts(sender, user, *args, **kwargs):
                 [payment.order.user.email],
                 "mail/renew_cvv_3ds_title.txt",
                 "mail/renew_cvv_3ds_body.txt",
-                {"redirect_url": str(redirect_to)},
+                {
+                    "redirect_url": str(redirect_to),
+                    "user": user,
+                    "userplan": userplan,
+                },
                 get_user_language(payment.order.user),
             )
         if payment.status == PaymentStatus.CONFIRMED:
