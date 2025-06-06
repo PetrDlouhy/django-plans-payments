@@ -191,9 +191,11 @@ def change_payment_status(sender, *args, **kwargs):
             f"Django-plans-payments: Payment status changed to {payment.status}"
         )
         order.save()
-        if hasattr(order.user.userplan, "recurring"):
-            order.user.userplan.recurring.token_verified = False
-            order.user.userplan.recurring.save()
+        # Maybe we would like to re-enable this for payments statuses that will not be ever renewed
+        # (like "SAC - Account closed (do not try again)" on PayU)
+        # if hasattr(order.user.userplan, "recurring"):
+        #     order.user.userplan.recurring.token_verified = False
+        #     order.user.userplan.recurring.save()
 
 
 @receiver(account_automatic_renewal)
