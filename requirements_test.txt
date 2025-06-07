@@ -9,7 +9,7 @@ isort
 black
 mypy
 django-stubs
-psycopg2
+psycopg2-binary
 model_bakery
 
 
