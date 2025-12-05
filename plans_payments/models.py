@@ -109,6 +109,26 @@ class Payment(BasePayment):
             pass
         return None
 
+    def get_renew_data(self):
+        """
+        Get all data needed for recurring payment charge.
+        
+        Returns dict with token and provider-specific data.
+        Override in subclass to add provider-specific data.
+        """
+        try:
+            recurring_plan = self.order.user.userplan.recurring
+            if not (
+                recurring_plan.token_verified
+                and self.variant == recurring_plan.payment_provider
+            ):
+                return None
+
+            return {"token": recurring_plan.token}
+
+        except ObjectDoesNotExist:
+            return None
+
     def set_renew_token(
         self,
         token,
@@ -121,6 +141,14 @@ class Payment(BasePayment):
         Store the recurring payments renew token for user of this payment
         The renew token is string defined by the provider
         """
+        logger.info(
+            "set_renew_token called: payment=%s, token=%s, card_year=%s, kwargs=%s",
+            self.id,
+            token,
+            card_expire_year,
+            kwargs,
+        )
+        
         # Extract implementation-specific parameters
         automatic_renewal = kwargs.get("automatic_renewal")
         renewal_triggered_by = kwargs.get("renewal_triggered_by")
@@ -153,6 +181,13 @@ class Payment(BasePayment):
         else:
             raise ValueError(f"Invalid renewal_triggered_by: {renewal_triggered_by}")
 
+        logger.info(
+            "Calling set_plan_renewal: token=%s, provider=%s, card_year=%s, renewal_triggered_by=%s",
+            token,
+            self.variant,
+            card_expire_year,
+            renewal_triggered_by,
+        )
         self.order.user.userplan.set_plan_renewal(
             order=self.order,
             token=token,
@@ -162,6 +197,7 @@ class Payment(BasePayment):
             card_masked_number=card_masked_number,
             renewal_triggered_by=renewal_triggered_by,
         )
+        logger.info("set_plan_renewal completed for payment %s", self.id)
 
 
 @receiver(status_changed, sender=Payment)
