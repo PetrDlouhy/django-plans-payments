@@ -115,16 +115,17 @@ class Payment(BasePayment):
         card_expire_year=None,
         card_expire_month=None,
         card_masked_number=None,
-        # TODO: automatic_renewal deprecated. Remove in the next major release.
-        automatic_renewal=None,
-        # TODO: renewal_triggered_by=None deprecated. Set to TASK in the next major release.
-        renewal_triggered_by=None,
+        **kwargs,
     ):
         """
         Store the recurring payments renew token for user of this payment
         The renew token is string defined by the provider
-        Used by PayU provider for now
         """
+        # Extract implementation-specific parameters
+        automatic_renewal = kwargs.get("automatic_renewal")
+        renewal_triggered_by = kwargs.get("renewal_triggered_by")
+
+        # Handle defaults and deprecation
         if automatic_renewal is None and renewal_triggered_by is None:
             automatic_renewal = True
         if automatic_renewal is not None:
