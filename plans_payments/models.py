@@ -113,8 +113,7 @@ class Payment(BasePayment):
         """
         Get all data needed for recurring payment charge.
         
-        Returns dict with token and provider-specific data.
-        Override in subclass to add provider-specific data.
+        Returns dict with token and provider-specific data (e.g., customer_id for Stripe).
         """
         try:
             recurring_plan = self.order.user.userplan.recurring
@@ -124,7 +123,15 @@ class Payment(BasePayment):
             ):
                 return None
 
-            return {"token": recurring_plan.token}
+            data = {"token": recurring_plan.token}
+
+            # Add provider-specific data from extra_data
+            if "stripe" in self.variant and recurring_plan.extra_data:
+                customer_id = recurring_plan.extra_data.get("stripe_customer_id")
+                if customer_id:
+                    data["customer_id"] = customer_id
+
+            return data
 
         except ObjectDoesNotExist:
             return None
@@ -198,6 +205,15 @@ class Payment(BasePayment):
             renewal_triggered_by=renewal_triggered_by,
         )
         logger.info("set_plan_renewal completed for payment %s", self.id)
+
+        # Store Stripe customer_id in RecurringUserPlan.extra_data
+        customer_id = kwargs.get("customer_id")
+        if customer_id and "stripe" in self.variant:
+            recurring_plan = self.order.user.userplan.recurring
+            if not recurring_plan.extra_data:
+                recurring_plan.extra_data = {}
+            recurring_plan.extra_data["stripe_customer_id"] = customer_id
+            recurring_plan.save(update_fields=["extra_data"])
 
 
 @receiver(status_changed, sender=Payment)
