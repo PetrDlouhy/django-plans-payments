@@ -206,14 +206,21 @@ class Payment(BasePayment):
         )
         logger.info("set_plan_renewal completed for payment %s", self.id)
 
-        # Store Stripe customer_id in RecurringUserPlan.extra_data
+        # Store Stripe customer_id in RecurringUserPlan.extra_data (if field exists)
         customer_id = kwargs.get("customer_id")
         if customer_id and "stripe" in self.variant:
             recurring_plan = self.order.user.userplan.recurring
-            if not recurring_plan.extra_data:
-                recurring_plan.extra_data = {}
-            recurring_plan.extra_data["stripe_customer_id"] = customer_id
-            recurring_plan.save(update_fields=["extra_data"])
+            if hasattr(recurring_plan, "extra_data"):
+                if not recurring_plan.extra_data:
+                    recurring_plan.extra_data = {}
+                recurring_plan.extra_data["stripe_customer_id"] = customer_id
+                recurring_plan.save(update_fields=["extra_data"])
+                logger.info("Stored Stripe customer_id in extra_data for payment %s", self.id)
+            else:
+                logger.info(
+                    "RecurringUserPlan has no extra_data field, skipping customer_id storage for payment %s",
+                    self.id,
+                )
 
 
 @receiver(status_changed, sender=Payment)
