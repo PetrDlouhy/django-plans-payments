@@ -125,11 +125,12 @@ class Payment(BasePayment):
 
             data = {"token": recurring_plan.token}
 
-            # Add provider-specific data from extra_data
-            if "stripe" in self.variant and recurring_plan.extra_data:
-                customer_id = recurring_plan.extra_data.get("stripe_customer_id")
-                if customer_id:
-                    data["customer_id"] = customer_id
+            # Add provider-specific data from extra_data (if field exists)
+            if "stripe" in self.variant and hasattr(recurring_plan, "extra_data"):
+                if recurring_plan.extra_data:
+                    customer_id = recurring_plan.extra_data.get("stripe_customer_id")
+                    if customer_id:
+                        data["customer_id"] = customer_id
 
             return data
 
@@ -220,7 +221,7 @@ class Payment(BasePayment):
                 logger.info(
                     "RecurringUserPlan has no extra_data field, skipping customer_id storage for payment %s",
                     self.id,
-                )
+        )
 
 
 @receiver(status_changed, sender=Payment)
