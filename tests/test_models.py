@@ -377,10 +377,14 @@ class TestPlansPayments(TestCase):
             status=PaymentStatus.REJECTED,
         )
         userplan = baker.make("UserPlan", user=p.order.user)
-        baker.make("RecurringUserPlan", user_plan=userplan)
+        recurring_user_plan = baker.make(
+            "RecurringUserPlan", user_plan=userplan, token_verified=True
+        )
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "rejected")
         self.assertEqual(p.order.status, Order.STATUS.CANCELED)
+        recurring_user_plan.refresh_from_db()
+        self.assertEqual(recurring_user_plan.token_verified, True)
 
     def test_change_payment_status_rejected_order_completed(self):
         p = models.Payment(
@@ -391,6 +395,54 @@ class TestPlansPayments(TestCase):
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "rejected")
         self.assertEqual(p.order.status, Order.STATUS.COMPLETED)
+
+    def test_change_payment_status_rejected_token_verified_unchanged(self):
+        """Test that token_verified remains True when payment is rejected"""
+        p = models.Payment(
+            order=baker.make("Order", status=Order.STATUS.NEW),
+            status=PaymentStatus.REJECTED,
+        )
+        userplan = baker.make("UserPlan", user=p.order.user)
+        recurring_user_plan = baker.make(
+            "RecurringUserPlan", user_plan=userplan, token_verified=True
+        )
+        models.change_payment_status("sender", instance=p)
+        self.assertEqual(p.status, "rejected")
+        self.assertEqual(p.order.status, Order.STATUS.CANCELED)
+        recurring_user_plan.refresh_from_db()
+        self.assertEqual(recurring_user_plan.token_verified, True)
+
+    def test_change_payment_status_error_token_verified_unchanged(self):
+        """Test that token_verified remains True when payment has error status"""
+        p = models.Payment(
+            order=baker.make("Order", status=Order.STATUS.NEW),
+            status=PaymentStatus.ERROR,
+        )
+        userplan = baker.make("UserPlan", user=p.order.user)
+        recurring_user_plan = baker.make(
+            "RecurringUserPlan", user_plan=userplan, token_verified=True
+        )
+        models.change_payment_status("sender", instance=p)
+        self.assertEqual(p.status, "error")
+        self.assertEqual(p.order.status, Order.STATUS.CANCELED)
+        recurring_user_plan.refresh_from_db()
+        self.assertEqual(recurring_user_plan.token_verified, True)
+
+    def test_change_payment_status_rejected_token_verified_false_unchanged(self):
+        """Test that token_verified remains False when payment is rejected and token was never verified"""
+        p = models.Payment(
+            order=baker.make("Order", status=Order.STATUS.NEW),
+            status=PaymentStatus.REJECTED,
+        )
+        userplan = baker.make("UserPlan", user=p.order.user)
+        recurring_user_plan = baker.make(
+            "RecurringUserPlan", user_plan=userplan, token_verified=False
+        )
+        models.change_payment_status("sender", instance=p)
+        self.assertEqual(p.status, "rejected")
+        self.assertEqual(p.order.status, Order.STATUS.CANCELED)
+        recurring_user_plan.refresh_from_db()
+        self.assertEqual(recurring_user_plan.token_verified, False)
 
     def test_change_payment_status_refunded(self):
         p = models.Payment(
@@ -501,6 +553,8 @@ class TestPlansPayments(TestCase):
             renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
             amount=14,
             pricing=plan_pricing.pricing,
+            token="test_token",
+            token_verified=True,
         )
         with warnings.catch_warnings(record=True) as caught_warnings:
             warnings.simplefilter("always")
