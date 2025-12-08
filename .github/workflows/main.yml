@@ -59,6 +59,9 @@ jobs:
            pip install -e .
            pip install --upgrade --upgrade-strategy eager -r requirements_test.txt
            pip install Django==${{ matrix.DJANGO_VERSION }}
+           # Install django-payments from wallet interface branch (model-payu)
+           # TODO: change to regular django-payments after https://github.com/jazzband/django-payments/pull/217 is merged
+           pip install git+https://github.com/PetrDlouhy/django-payments@model-payu#egg=django-payments
            pip install codecov
 
       - name: Testing

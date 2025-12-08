@@ -8,17 +8,45 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 from django.dispatch.dispatcher import receiver
 from django.urls import reverse
-from payments import PaymentStatus, PurchasedItem, RedirectNeeded
-from payments.models import BasePayment
+from payments import PaymentStatus, PurchasedItem, RedirectNeeded, WalletStatus
+from payments.models import BasePayment, BaseWallet
 from payments.signals import status_changed
 from plans.base.models import AbstractRecurringUserPlan
 from plans.contrib import get_user_language, send_template_email
 from plans.models import Order
 from plans.signals import account_automatic_renewal
+from swapper import swappable_setting
 
 from .views import create_payment_object
 
 logger = logging.getLogger(__name__)
+
+
+class RecurringUserPlan(AbstractRecurringUserPlan, BaseWallet):
+    """
+    RecurringUserPlan that inherits from BaseWallet.
+
+    Bridges django-plans (subscription) with django-payments (payment processing)
+    by implementing both interfaces in the connector layer.
+
+    Provides:
+    - token (from both parents - same field, perfect!)
+    - status (from BaseWallet)
+    - extra_data (from BaseWallet) - stores customer_id, etc.
+    - All subscription fields (from AbstractRecurringUserPlan)
+    """
+
+    class Meta(AbstractRecurringUserPlan.Meta):
+        abstract = False
+        app_label = "plans"  # Resolve lazy references (Pricing, UserPlan) in plans app
+        swappable = swappable_setting("plans", "RecurringUserPlan")
+
+    def payment_completed(self, payment):
+        """Called after successful wallet payment."""
+        if payment.status == PaymentStatus.CONFIRMED:
+            self.status = WalletStatus.ACTIVE
+            self.token_verified = True
+            self.save(update_fields=["status", "token_verified"])
 
 
 class Payment(BasePayment):
@@ -111,20 +139,24 @@ class Payment(BasePayment):
 
     def get_renew_data(self):
         """
-        Get all data needed for recurring payment charge.
-        
-        Returns dict with token and provider-specific data.
-        Override in subclass to add provider-specific data.
+        Get token + extra_data from RecurringUserPlan (which IS a wallet).
+
+        Returns dict with token and provider-specific data from extra_data.
         """
         try:
-            recurring_plan = self.order.user.userplan.recurring
+            recurring = self.order.user.userplan.recurring
             if not (
-                recurring_plan.token_verified
-                and self.variant == recurring_plan.payment_provider
+                recurring.token_verified
+                and recurring.status == WalletStatus.ACTIVE
+                and self.variant == recurring.payment_provider
             ):
                 return None
 
-            return {"token": recurring_plan.token}
+            data = {"token": recurring.token}
+            # Add provider-specific data from extra_data (e.g., customer_id for Stripe)
+            if recurring.extra_data:
+                data.update(recurring.extra_data)
+            return data
 
         except ObjectDoesNotExist:
             return None
@@ -173,6 +205,21 @@ class Payment(BasePayment):
         else:
             raise ValueError(f"Invalid renewal_triggered_by: {renewal_triggered_by}")
 
+        recurring = self.order.user.userplan.recurring
+
+        # Store token and activate wallet
+        recurring.token = token
+        recurring.status = WalletStatus.ACTIVE
+
+        # Store provider-specific data in extra_data (from BaseWallet)
+        if "customer_id" in kwargs:
+            if not recurring.extra_data:
+                recurring.extra_data = {}
+            recurring.extra_data["customer_id"] = kwargs.pop("customer_id")
+
+        recurring.save()
+
+        # Also update subscription-specific fields
         self.order.user.userplan.set_plan_renewal(
             order=self.order,
             token=token,
@@ -190,8 +237,8 @@ def change_payment_status(sender, *args, **kwargs):
     order = payment.order
     if payment.status == PaymentStatus.CONFIRMED:
         if hasattr(order.user.userplan, "recurring"):
-            order.user.userplan.recurring.token_verified = True
-            order.user.userplan.recurring.save()
+            # RecurringUserPlan IS a wallet, so use payment_completed method
+            order.user.userplan.recurring.payment_completed(payment)
         order.complete_order()
     if (
         getattr(settings, "PLANS_PAYMENTS_RETURN_ORDER_WHEN_PAYMENT_REFUNDED", False)
