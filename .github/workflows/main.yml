@@ -23,18 +23,10 @@ jobs:
     strategy:
       matrix:
         DJANGO_VERSION: ['4.2.*', '5.0.*', '5.1.*', '5.2.*']
-        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
+        python-version: ['3.10', '3.11', '3.12', '3.13']
         exclude:
           - DJANGO_VERSION: '5.0.*'
-            python-version: '3.9'
-          - DJANGO_VERSION: '5.0.*'
             python-version: '3.13'
-
-          - DJANGO_VERSION: '5.1.*'
-            python-version: '3.9'
-
-          - DJANGO_VERSION: '5.2.*'
-            python-version: '3.9'
       fail-fast: false
 
     services:
