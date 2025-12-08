@@ -501,6 +501,8 @@ class TestPlansPayments(TestCase):
             renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
             amount=14,
             pricing=plan_pricing.pricing,
+            token="test_token",
+            token_verified=True,
         )
         with warnings.catch_warnings(record=True) as caught_warnings:
             warnings.simplefilter("always")

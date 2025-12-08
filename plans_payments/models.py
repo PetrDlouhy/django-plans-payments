@@ -210,6 +210,12 @@ def renew_accounts(sender, user, *args, **kwargs):
             userplan.recurring.payment_provider, order, autorenewed_payment=True
         )
 
+        # Set payment method token for recurring payment (required by django-payments)
+        renew_token = payment.get_renew_token()
+        if renew_token:
+            # django-payments expects payment_method_token attribute for recurring payments
+            payment.payment_method_token = renew_token
+
         try:
             payment.autocomplete_with_wallet()
         except RedirectNeeded as redirect_to:
