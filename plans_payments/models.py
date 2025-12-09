@@ -109,22 +109,63 @@ class Payment(BasePayment):
             pass
         return None
 
+    def get_renew_data(self):
+        """
+        Get all data needed for recurring payment charge.
+
+        Returns dict with token and provider-specific data from extra_data.
+        Returns None if wallet is not verified or does not exist.
+
+        Example:
+            >>> payment.get_renew_data()
+            {'token': 'tok_123', 'customer_id': 'cus_456'}
+
+        Returns:
+            dict: Contains 'token' and any provider-specific keys from extra_data
+            None: If wallet is not verified or doesn't exist
+        """
+        try:
+            recurring_plan = self.order.user.userplan.recurring
+            if not (
+                recurring_plan.token_verified
+                and self.variant == recurring_plan.payment_provider
+            ):
+                return None
+
+            data = {"token": recurring_plan.token}
+
+            # Add provider-specific data from extra_data (if field exists)
+            # This allows any provider to store additional data (e.g., customer_id for Stripe)
+            if hasattr(recurring_plan, "extra_data"):
+                if not isinstance(recurring_plan.extra_data, dict):
+                    raise ValueError(
+                        f"extra_data must be dict, got {type(recurring_plan.extra_data)}"
+                    )
+                # Merge all extra_data into the result (provider-agnostic)
+                data.update(recurring_plan.extra_data)
+
+            return data
+
+        except ObjectDoesNotExist:
+            return None
+
     def set_renew_token(
         self,
         token,
         card_expire_year=None,
         card_expire_month=None,
         card_masked_number=None,
-        # TODO: automatic_renewal deprecated. Remove in the next major release.
-        automatic_renewal=None,
-        # TODO: renewal_triggered_by=None deprecated. Set to TASK in the next major release.
-        renewal_triggered_by=None,
+        **kwargs,
     ):
         """
         Store the recurring payments renew token for user of this payment
         The renew token is string defined by the provider
-        Used by PayU provider for now
         """
+        # Extract implementation-specific parameters
+        automatic_renewal = kwargs.get("automatic_renewal")
+        renewal_triggered_by = kwargs.get("renewal_triggered_by")
+
+        # Handle defaults and deprecation
         if automatic_renewal is None and renewal_triggered_by is None:
             automatic_renewal = True
         if automatic_renewal is not None:
@@ -161,6 +202,22 @@ class Payment(BasePayment):
             card_masked_number=card_masked_number,
             renewal_triggered_by=renewal_triggered_by,
         )
+
+        # Store provider-specific data in RecurringUserPlan.extra_data (if field exists)
+        # This allows any provider to store additional data via kwargs (e.g., customer_id for Stripe)
+        if hasattr(self.order.user.userplan.recurring, "extra_data"):
+            recurring_plan = self.order.user.userplan.recurring
+            if not isinstance(recurring_plan.extra_data, dict):
+                raise ValueError(
+                    f"extra_data must be dict, got {type(recurring_plan.extra_data)}"
+                )
+            # Store any provider-specific kwargs in extra_data (excluding already processed ones)
+            processed_keys = {"automatic_renewal", "renewal_triggered_by"}
+            for key, value in kwargs.items():
+                if key not in processed_keys:
+                    recurring_plan.extra_data[key] = value
+            if recurring_plan.extra_data:
+                recurring_plan.save(update_fields=["extra_data"])
 
 
 @receiver(status_changed, sender=Payment)
@@ -211,12 +268,6 @@ def renew_accounts(sender, user, *args, **kwargs):
         payment = create_payment_object(
             userplan.recurring.payment_provider, order, autorenewed_payment=True
         )
-
-        # Set payment method token for recurring payment (required by django-payments)
-        renew_token = payment.get_renew_token()
-        if renew_token:
-            # django-payments expects payment_method_token attribute for recurring payments
-            payment.payment_method_token = renew_token
 
         try:
             payment.autocomplete_with_wallet()
