@@ -17,9 +17,12 @@ from django.test import TestCase, override_settings
 from freezegun import freeze_time
 from model_bakery import baker
 from payments import PaymentStatus
-from plans.models import Invoice, Order, RecurringUserPlan
+from plans.models import Invoice, Order
+from swapper import load_model
 
 from plans_payments import models
+
+RecurringUserPlan = load_model("plans", "RecurringUserPlan")
 
 
 class TestPlansPayments(TestCase):
@@ -188,7 +191,7 @@ class TestPlansPayments(TestCase):
         p = models.Payment(order=baker.make("Order", user=user), variant="default")
         userplan = baker.make("UserPlan", user=user, order__user=user)
         baker.make(
-            "RecurringUserPlan",
+            "plans_payments.RecurringUserPlan",
             user_plan=userplan,
             token_verified=True,
             token="token",
@@ -202,11 +205,12 @@ class TestPlansPayments(TestCase):
         p = models.Payment(order=baker.make("Order", user=user), variant="default")
         userplan = baker.make("UserPlan", user=user, order__user=user)
         baker.make(
-            "RecurringUserPlan",
+            "plans_payments.RecurringUserPlan",
             user_plan=userplan,
             token_verified=True,
             token="token",
             payment_provider="default",
+            status="active",
         )
         result = p.get_renew_data()
         self.assertEqual(result, {"token": "token"})
@@ -217,11 +221,12 @@ class TestPlansPayments(TestCase):
         p = models.Payment(order=baker.make("Order", user=user), variant="default")
         userplan = baker.make("UserPlan", user=user, order__user=user)
         recurring = baker.make(
-            "RecurringUserPlan",
+            "plans_payments.RecurringUserPlan",
             user_plan=userplan,
             token_verified=True,
             token="token",
             payment_provider="default",
+            status="active",
         )
         # Add extra_data if the model supports it
         if hasattr(recurring, "extra_data"):
@@ -242,11 +247,12 @@ class TestPlansPayments(TestCase):
         p = models.Payment(order=baker.make("Order", user=user), variant="default")
         userplan = baker.make("UserPlan", user=user, order__user=user)
         baker.make(
-            "RecurringUserPlan",
+            "plans_payments.RecurringUserPlan",
             user_plan=userplan,
             token_verified=False,
             token="token",
             payment_provider="default",
+            status="pending",
         )
         result = p.get_renew_data()
         self.assertIsNone(result)
@@ -257,11 +263,12 @@ class TestPlansPayments(TestCase):
         p = models.Payment(order=baker.make("Order", user=user), variant="default")
         userplan = baker.make("UserPlan", user=user, order__user=user)
         baker.make(
-            "RecurringUserPlan",
+            "plans_payments.RecurringUserPlan",
             user_plan=userplan,
             token_verified=True,
             token="token",
             payment_provider="default",
+            status="active",
         )
         result = p.get_renew_data()
         self.assertEqual(result, {"token": "token"})
@@ -441,7 +448,7 @@ class TestPlansPayments(TestCase):
             status=PaymentStatus.CONFIRMED,
         )
         userplan = baker.make("UserPlan", user=p.order.user)
-        recurring_user_plan = baker.make("RecurringUserPlan", user_plan=userplan)
+        recurring_user_plan = baker.make("plans_payments.RecurringUserPlan", user_plan=userplan)
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "confirmed")
         self.assertEqual(recurring_user_plan.token_verified, True)
@@ -456,7 +463,7 @@ class TestPlansPayments(TestCase):
         )
         userplan = baker.make("UserPlan", user=p.order.user)
         baker.make("BillingInfo", user=p.order.user)
-        baker.make("RecurringUserPlan", user_plan=userplan)
+        baker.make("plans_payments.RecurringUserPlan", user_plan=userplan)
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.order.completed, datetime(2018, 1, 1, 0, 0, tzinfo=pytz.UTC))
 
@@ -475,9 +482,7 @@ class TestPlansPayments(TestCase):
             status=PaymentStatus.REJECTED,
         )
         userplan = baker.make("UserPlan", user=p.order.user)
-        recurring_user_plan = baker.make(
-            "RecurringUserPlan", user_plan=userplan, token_verified=True
-        )
+        recurring_user_plan = baker.make("plans_payments.RecurringUserPlan", user_plan=userplan, token_verified=True)
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "rejected")
         self.assertEqual(p.order.status, Order.STATUS.CANCELED)
@@ -502,7 +507,7 @@ class TestPlansPayments(TestCase):
         )
         userplan = baker.make("UserPlan", user=p.order.user)
         recurring_user_plan = baker.make(
-            "RecurringUserPlan", user_plan=userplan, token_verified=True
+            "plans_payments.RecurringUserPlan", user_plan=userplan, token_verified=True
         )
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "rejected")
@@ -518,7 +523,7 @@ class TestPlansPayments(TestCase):
         )
         userplan = baker.make("UserPlan", user=p.order.user)
         recurring_user_plan = baker.make(
-            "RecurringUserPlan", user_plan=userplan, token_verified=True
+            "plans_payments.RecurringUserPlan", user_plan=userplan, token_verified=True
         )
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "error")
@@ -534,7 +539,7 @@ class TestPlansPayments(TestCase):
         )
         userplan = baker.make("UserPlan", user=p.order.user)
         recurring_user_plan = baker.make(
-            "RecurringUserPlan", user_plan=userplan, token_verified=False
+            "plans_payments.RecurringUserPlan", user_plan=userplan, token_verified=False
         )
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "rejected")
@@ -626,7 +631,7 @@ class TestPlansPayments(TestCase):
         user = baker.make("User")
         userplan = baker.make("UserPlan", user=user)
         baker.make(
-            "RecurringUserPlan",
+            "plans_payments.RecurringUserPlan",
             user_plan=userplan,
             renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
         )
@@ -645,7 +650,7 @@ class TestPlansPayments(TestCase):
         plan_pricing = baker.make("PlanPricing", plan=userplan.plan, price=12)
         baker.make("BillingInfo", user=user)
         baker.make(
-            "RecurringUserPlan",
+            "plans_payments.RecurringUserPlan",
             user_plan=userplan,
             payment_provider="default",
             renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
@@ -674,7 +679,7 @@ class TestPlansPayments(TestCase):
         user = baker.make("User")
         userplan = baker.make("UserPlan", user=user)
         baker.make(
-            "RecurringUserPlan",
+            "plans_payments.RecurringUserPlan",
             user_plan=userplan,
             payment_provider="default",
             renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.USER,
@@ -692,7 +697,7 @@ class TestPlansPayments(TestCase):
         user = baker.make("User")
         userplan = baker.make("UserPlan", user=user)
         baker.make(
-            "RecurringUserPlan",
+            "plans_payments.RecurringUserPlan",
             user_plan=userplan,
             payment_provider="default",
             renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.OTHER,
@@ -720,7 +725,7 @@ class TestPlansPayments(TestCase):
         plan_pricing = baker.make("PlanPricing", plan=userplan.plan, price=12)
         baker.make("BillingInfo", user=user)
         recurring = baker.make(
-            "RecurringUserPlan",
+            "plans_payments.RecurringUserPlan",
             user_plan=userplan,
             payment_provider="default",
             renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
@@ -773,7 +778,7 @@ class TestPlansPayments(TestCase):
         plan_pricing = baker.make("PlanPricing", plan=userplan.plan, price=12)
         baker.make("BillingInfo", user=user)
         baker.make(
-            "RecurringUserPlan",
+            "plans_payments.RecurringUserPlan",
             user_plan=userplan,
             payment_provider="default",
             renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,

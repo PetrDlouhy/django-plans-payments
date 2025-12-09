@@ -33,6 +33,7 @@ INSTALLED_APPS = [
 
 SITE_ID = 1
 PAYMENT_MODEL = "plans_payments.Payment"
+PLANS_RECURRINGUSERPLAN_MODEL = "plans_payments.RecurringUserPlan"
 
 PAYMENT_VARIANTS: Dict[str, Tuple[str, Dict]] = {
     "default": ("payments.dummy.DummyProvider", {}),
