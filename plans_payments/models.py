@@ -37,10 +37,10 @@ class RecurringUserPlan(AbstractRecurringUserPlan, BaseWallet):
     """
 
     # Override ForeignKeys to use fully qualified references to resolve in plans app
-    user_plan = models.OneToOneField(
+    user_plan: models.OneToOneField = models.OneToOneField(
         "plans.UserPlan", on_delete=models.CASCADE, related_name="recurring"
     )
-    pricing = models.ForeignKey(
+    pricing: models.ForeignKey = models.ForeignKey(
         "plans.Pricing",
         help_text="Recurring pricing",
         default=None,
