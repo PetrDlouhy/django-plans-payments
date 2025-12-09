@@ -448,7 +448,9 @@ class TestPlansPayments(TestCase):
             status=PaymentStatus.CONFIRMED,
         )
         userplan = baker.make("UserPlan", user=p.order.user)
-        recurring_user_plan = baker.make("plans_payments.RecurringUserPlan", user_plan=userplan)
+        recurring_user_plan = baker.make(
+            "plans_payments.RecurringUserPlan", user_plan=userplan
+        )
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "confirmed")
         self.assertEqual(recurring_user_plan.token_verified, True)
@@ -482,7 +484,9 @@ class TestPlansPayments(TestCase):
             status=PaymentStatus.REJECTED,
         )
         userplan = baker.make("UserPlan", user=p.order.user)
-        recurring_user_plan = baker.make("plans_payments.RecurringUserPlan", user_plan=userplan, token_verified=True)
+        recurring_user_plan = baker.make(
+            "plans_payments.RecurringUserPlan", user_plan=userplan, token_verified=True
+        )
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "rejected")
         self.assertEqual(p.order.status, Order.STATUS.CANCELED)

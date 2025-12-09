@@ -33,7 +33,7 @@ class Migration0006TestCase(TransactionTestCase):
         from django.db import connection
 
         # Ensure migrations are applied (they should be, but double-check)
-        call_command('migrate', verbosity=0, interactive=False)
+        call_command("migrate", verbosity=0, interactive=False)
 
         # Verify the table exists after migrations
         # When model is swapped, table could be plans_payments_recurringuserplan
