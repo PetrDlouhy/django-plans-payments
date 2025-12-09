@@ -11,6 +11,7 @@ mypy
 django-stubs
 psycopg2-binary
 model_bakery
+django-sequences
 
 
 # Additional test requirements go here

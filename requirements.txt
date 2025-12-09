@@ -1,4 +1,3 @@
 git+https://github.com/PetrDlouhy/django-payments.git@model-payu
 django-plans
 django-related-admin
-django-sequences
