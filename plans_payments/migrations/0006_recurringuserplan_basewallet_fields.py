@@ -127,26 +127,28 @@ def add_wallet_fields(apps, schema_editor):
     if not actual_db_table:
         return
 
-    # Add fields using raw SQL - simpler and more reliable for swappable models
-    cursor = schema_editor.connection.cursor()
+    # Temporarily update db_table if it differs from expected (handles table name mismatch)
+    original_db_table = RecurringUserPlan._meta.db_table
+    if actual_db_table != original_db_table:
+        RecurringUserPlan._meta.db_table = actual_db_table
 
-    if "status" not in existing_column_names:
-        try:
-            cursor.execute(
-                f'ALTER TABLE "{actual_db_table}" ADD COLUMN "status" VARCHAR(10) NOT NULL DEFAULT \'pending\''
-            )
-        except Exception as e:
-            # Column might already exist or there's an error - log and continue
-            pass
+    try:
+        # Add fields using Django's schema editor API (database-agnostic)
+        if "status" not in existing_column_names:
+            status_field = models.CharField(max_length=10, default="pending")
+            status_field.set_attributes_from_name("status")
+            status_field.model = RecurringUserPlan
+            schema_editor.add_field(RecurringUserPlan, status_field)
 
-    if "extra_data" not in existing_column_names:
-        try:
-            cursor.execute(
-                f'ALTER TABLE "{actual_db_table}" ADD COLUMN "extra_data" TEXT NOT NULL DEFAULT \'{{}}\''
-            )
-        except Exception as e:
-            # Column might already exist or there's an error - log and continue
-            pass
+        if "extra_data" not in existing_column_names:
+            extra_data_field = models.JSONField(default=dict, blank=True)
+            extra_data_field.set_attributes_from_name("extra_data")
+            extra_data_field.model = RecurringUserPlan
+            schema_editor.add_field(RecurringUserPlan, extra_data_field)
+    finally:
+        # Restore original db_table if we changed it
+        if actual_db_table != original_db_table:
+            RecurringUserPlan._meta.db_table = original_db_table
 
 
 def remove_wallet_fields(apps, schema_editor):
