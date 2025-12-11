@@ -12,8 +12,10 @@ from decimal import Decimal
 
 from django.test import TransactionTestCase
 from model_bakery import baker
+from payments import WalletStatus
+from swapper import load_model
 
-from plans_payments import models
+RecurringUserPlan = load_model("plans", "RecurringUserPlan")
 
 
 class Migration0006TestCase(TransactionTestCase):
@@ -39,14 +41,11 @@ class Migration0006TestCase(TransactionTestCase):
         # When model is swapped, table could be plans_payments_recurringuserplan
         # or plans_recurringuserplan (depending on when the swap happened
         # relative to django-plans migrations)
-        cursor = connection.cursor()
-        cursor.execute(
-            'SELECT name FROM sqlite_master WHERE type="table" '
-            'AND (name="plans_payments_recurringuserplan" '
-            'OR name="plans_recurringuserplan")'
-        )
-        table_result = cursor.fetchone()
-        if not table_result:
+        tables = connection.introspection.table_names()
+        if (
+            "plans_payments_recurringuserplan" not in tables
+            and "plans_recurringuserplan" not in tables
+        ):
             raise RuntimeError(
                 "RecurringUserPlan table does not exist after migrations. "
                 "Migration 0006 may have failed."
@@ -63,7 +62,7 @@ class Migration0006TestCase(TransactionTestCase):
             token_verified=True,
             amount=Decimal("10.00"),
             currency="USD",
-            renewal_triggered_by=models.RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
+            renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
             card_expire_year=2025,
             card_expire_month=12,
             card_masked_number="1234",
@@ -98,7 +97,7 @@ class Migration0006TestCase(TransactionTestCase):
         self.assertEqual(self.recurring.card_masked_number, "1234")
 
         # Verify new wallet fields are added with correct defaults
-        self.assertEqual(self.recurring.status, "pending")  # Default value
+        self.assertEqual(self.recurring.status, WalletStatus.PENDING)  # Default value
         self.assertEqual(self.recurring.extra_data, {})  # Default value
 
     def test_migration_adds_wallet_fields(self):
@@ -112,7 +111,7 @@ class Migration0006TestCase(TransactionTestCase):
         self.recurring.refresh_from_db()
 
         # Verify fields have default values
-        self.assertEqual(self.recurring.status, "pending")
+        self.assertEqual(self.recurring.status, WalletStatus.PENDING)
         self.assertEqual(self.recurring.extra_data, {})
 
     def test_migration_sets_default_status_for_existing_records(self):
@@ -120,4 +119,4 @@ class Migration0006TestCase(TransactionTestCase):
         # After migration, existing records should have status='pending'
         self.recurring.refresh_from_db()
         if hasattr(self.recurring, "status"):
-            self.assertEqual(self.recurring.status, "pending")
+            self.assertEqual(self.recurring.status, WalletStatus.PENDING)

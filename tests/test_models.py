@@ -16,7 +16,7 @@ import pytz
 from django.test import TestCase, override_settings
 from freezegun import freeze_time
 from model_bakery import baker
-from payments import PaymentStatus
+from payments import PaymentStatus, WalletStatus
 from plans.models import Invoice, Order
 from swapper import load_model
 
@@ -210,7 +210,7 @@ class TestPlansPayments(TestCase):
             token_verified=True,
             token="token",
             payment_provider="default",
-            status="active",
+            status=WalletStatus.ACTIVE,
         )
         result = p.get_renew_data()
         self.assertEqual(result, {"token": "token"})
@@ -252,7 +252,7 @@ class TestPlansPayments(TestCase):
             token_verified=False,
             token="token",
             payment_provider="default",
-            status="pending",
+            status=WalletStatus.PENDING,
         )
         result = p.get_renew_data()
         self.assertIsNone(result)
@@ -268,7 +268,7 @@ class TestPlansPayments(TestCase):
             token_verified=True,
             token="token",
             payment_provider="default",
-            status="active",
+            status=WalletStatus.ACTIVE,
         )
         result = p.get_renew_data()
         self.assertEqual(result, {"token": "token"})
