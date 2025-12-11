@@ -25,6 +25,10 @@ Quickstart
 Install and configure ``django-plans`` and ``django-payments`` apps.
 Capture mode is not yet supported, so ``PAYMENT_VARINANTS`` with ``'capture': False`` will not get confirmed.
 
+**Important**: This package requires ``django-payments`` from the ``model-payu`` branch, which implements the recurring payments interface. Install it with::
+
+    pip install git+https://github.com/PetrDlouhy/django-payments.git@model-payu
+
 Install Django plans payments::
 
     pip install django-plans-payments

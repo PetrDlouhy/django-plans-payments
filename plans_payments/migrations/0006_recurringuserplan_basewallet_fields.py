@@ -2,77 +2,16 @@
 #
 # This migration adds BaseWallet fields (status, extra_data) to RecurringUserPlan.
 #
-# For swappable models, we use SeparateDatabaseAndState:
-# - state_operations: Register the model in plans_payments migration state with ALL fields
-# - database_operations: Add only the new fields using RunPython (conditional on swap)
+# Migration strategy:
+# - Use SeparateDatabaseAndState with STATIC field definitions
+# - state_operations: Register model with all fields from AbstractRecurringUserPlan + BaseWallet
+# - database_operations: Only add the new BaseWallet fields (status, extra_data)
+# - Static fields avoid import-time circular dependencies
+# - Works for both blank DB and existing DB
 
 from django.conf import settings
 from django.db import migrations, models
 from django.db.utils import DatabaseError
-
-
-def _get_all_recurring_user_plan_fields():
-    """Get all field definitions for RecurringUserPlan using field.deconstruct().
-
-    This is needed so Django's migration state knows about all fields,
-    not just the new ones. Otherwise makemigrations will try to add all
-    the AbstractRecurringUserPlan fields in a subsequent migration.
-
-    We use deconstruct() to get the exact field definition that Django
-    migration system expects.
-    """
-    try:
-        from swapper import load_model
-
-        RecurringUserPlan = load_model("plans", "RecurringUserPlan")
-    except (ImportError, LookupError):
-        # Can't load model - return minimal fields as fallback
-        return [
-            ("id", models.AutoField(primary_key=True, serialize=False)),
-            ("status", models.CharField(default="pending", max_length=10)),
-            ("extra_data", models.JSONField(default=dict, blank=True)),
-        ]
-
-    # Build field definitions using deconstruct() to get exact Django migration format
-    field_definitions = []
-
-    # Get all concrete fields from the model, in order
-    for field in RecurringUserPlan._meta.get_fields():
-        if not hasattr(field, "name") or not field.concrete:
-            continue
-
-        # Skip reverse relations and many-to-many
-        if field.is_relation and (
-            field.many_to_many or not (field.many_to_one or field.one_to_one)
-        ):
-            continue
-
-        # Use deconstruct() to get the field definition
-        try:
-            name, path, args, kwargs = field.deconstruct()
-            # Reconstruct the field class
-            field_class = field.__class__
-            # Handle related fields specially - use string references
-            if field.is_relation:
-                if "to" in kwargs:
-                    # Replace model reference with string
-                    to_model = kwargs["to"]
-                    if hasattr(to_model, "_meta"):
-                        kwargs["to"] = to_model._meta.label
-                    elif isinstance(to_model, str):
-                        kwargs["to"] = to_model
-                # Reconstruct the field
-                field_def = field_class(*args, **kwargs)
-            else:
-                # Regular field - reconstruct directly
-                field_def = field_class(*args, **kwargs)
-
-            field_definitions.append((field.name, field_def))
-        except Exception:
-            # If deconstruct fails, skip this field
-            continue
-
-    return field_definitions
 
 
 def add_wallet_fields(apps, schema_editor):
@@ -81,26 +20,35 @@ def add_wallet_fields(apps, schema_editor):
     if not swappable_model or not swappable_model.startswith("plans_payments."):
         return
 
+    # Try to get model from migration state (after state_operations)
+    # Note: With SeparateDatabaseAndState, state_operations run first and update the state,
+    # but the `apps` parameter passed to RunPython is still the state BEFORE this migration.
+    # So we need to get the model from the actual Django app registry instead.
+    RecurringUserPlan = None
+
+    # First try migration state (might work if state was updated)
     try:
         RecurringUserPlan = apps.get_model("plans_payments", "RecurringUserPlan")
     except LookupError:
-        # Model not in migration state yet - this is OK, we'll work with the actual table
-        # Get the model from the actual app to find the table name
-        from swapper import load_model
+        pass
 
+    # If not in migration state, try to get from actual app
+    if RecurringUserPlan is None:
         try:
-            RecurringUserPlan = load_model("plans", "RecurringUserPlan")
-        except (ImportError, LookupError):
-            return
+            from plans_payments.models import RecurringUserPlan as ActualModel
 
-    expected_db_table = (
-        RecurringUserPlan._meta.db_table
-    )  # plans_payments_recurringuserplan when swapped
+            RecurringUserPlan = ActualModel
+        except (ImportError, AttributeError):
+            # Model not available - can't proceed
+            RecurringUserPlan = None
 
-    # Check if table exists - could be under new name (plans_payments_recurringuserplan)
-    # or old name (plans_recurringuserplan) if model was swapped after django-plans migrations
+    # Table name is always plans_recurringuserplan (from db_table in Meta)
+    expected_db_table = "plans_recurringuserplan"
+
+    # Check if table exists - could be under new or old name
     actual_db_table = None
     existing_column_names = []
+    table_exists = False
 
     try:
         existing_columns = schema_editor.connection.introspection.get_table_description(
@@ -108,8 +56,9 @@ def add_wallet_fields(apps, schema_editor):
         )
         existing_column_names = [col.name for col in existing_columns]
         actual_db_table = expected_db_table
+        table_exists = True
     except DatabaseError:
-        # Table doesn't exist under new name - check old name
+        # Table doesn't exist under expected name - check old name
         old_table = "plans_recurringuserplan"
         try:
             existing_columns = (
@@ -119,36 +68,95 @@ def add_wallet_fields(apps, schema_editor):
             )
             existing_column_names = [col.name for col in existing_columns]
             actual_db_table = old_table
+            table_exists = True
         except DatabaseError:
-            # Neither table exists - this shouldn't happen if migrations ran correctly
-            # but we'll skip gracefully
+            # Table doesn't exist - this is a fresh install scenario
+            # The CreateModel in state_operations will handle table creation
+            # We just need to ensure wallet fields are included
+            table_exists = False
+
+    # If table doesn't exist, we need to create it
+    # (CreateModel in state_operations only updates migration state, not database)
+    # This happens in fresh installs where PLANS_RECURRINGUSERPLAN_MODEL='plans_payments.RecurringUserPlan'
+    # from the start, so django-plans migrations skip creating the table.
+    # The model should be available from migration state after state_operations run.
+    # However, the `apps` parameter is the state BEFORE this migration, so we need to
+    # get the model from the actual app or create it dynamically.
+    if not table_exists:
+        # Try to get the actual model from the app (avoids registration conflicts)
+        try:
+            from plans_payments.models import RecurringUserPlan as ActualModel
+
+            RecurringUserPlan = ActualModel
+        except (ImportError, AttributeError):
+            # Model not available - can't create table without it
+            # This shouldn't happen, but if it does, skip table creation
+            # The table will need to be created by a subsequent migration
             return
 
-    if not actual_db_table:
+        # Create the table with all fields from the actual model
+        schema_editor.create_model(RecurringUserPlan)
         return
 
-    # Temporarily update db_table if it differs from expected (handles table name mismatch)
-    original_db_table = RecurringUserPlan._meta.db_table
-    if actual_db_table != original_db_table:
-        RecurringUserPlan._meta.db_table = actual_db_table
+    # Table exists - add wallet fields if they don't exist
+    if RecurringUserPlan is not None:
+        # We have the model - use schema_editor.add_field() (database-agnostic)
+        # Temporarily update db_table if it differs from expected
+        original_db_table = RecurringUserPlan._meta.db_table
+        if actual_db_table != expected_db_table:
+            RecurringUserPlan._meta.db_table = actual_db_table
 
-    try:
-        # Add fields using Django's schema editor API (database-agnostic)
-        if "status" not in existing_column_names:
-            status_field = models.CharField(max_length=10, default="pending")
-            status_field.set_attributes_from_name("status")
-            status_field.model = RecurringUserPlan
-            schema_editor.add_field(RecurringUserPlan, status_field)
+        try:
+            # Add fields using Django's schema editor API
+            # Django's add_field() with default= applies defaults to existing rows
+            # for SQLite and PostgreSQL automatically
+            if "status" not in existing_column_names:
+                status_field = models.CharField(max_length=10, default="pending")
+                status_field.set_attributes_from_name("status")
+                status_field.model = RecurringUserPlan
+                schema_editor.add_field(RecurringUserPlan, status_field)
 
-        if "extra_data" not in existing_column_names:
-            extra_data_field = models.JSONField(default=dict, blank=True)
-            extra_data_field.set_attributes_from_name("extra_data")
-            extra_data_field.model = RecurringUserPlan
-            schema_editor.add_field(RecurringUserPlan, extra_data_field)
-    finally:
-        # Restore original db_table if we changed it
-        if actual_db_table != original_db_table:
-            RecurringUserPlan._meta.db_table = original_db_table
+            if "extra_data" not in existing_column_names:
+                extra_data_field = models.JSONField(default=dict, blank=True)
+                extra_data_field.set_attributes_from_name("extra_data")
+                extra_data_field.model = RecurringUserPlan
+                schema_editor.add_field(RecurringUserPlan, extra_data_field)
+        finally:
+            if actual_db_table != expected_db_table:
+                RecurringUserPlan._meta.db_table = original_db_table
+    else:
+        # Model not available from migration state - try to get from actual app
+        try:
+            from plans_payments.models import RecurringUserPlan as ActualModel
+
+            RecurringUserPlan = ActualModel
+        except (ImportError, AttributeError):
+            # Model not available - can't proceed
+            return
+
+        # Temporarily update db_table if it differs from expected
+        original_db_table = RecurringUserPlan._meta.db_table
+        if actual_db_table != expected_db_table:
+            RecurringUserPlan._meta.db_table = actual_db_table
+
+        try:
+            # Add fields using Django's schema editor API
+            # Django's add_field() with default= applies defaults to existing rows
+            # for SQLite and PostgreSQL automatically
+            if "status" not in existing_column_names:
+                status_field = models.CharField(max_length=10, default="pending")
+                status_field.set_attributes_from_name("status")
+                status_field.model = RecurringUserPlan
+                schema_editor.add_field(RecurringUserPlan, status_field)
+
+            if "extra_data" not in existing_column_names:
+                extra_data_field = models.JSONField(default=dict, blank=True)
+                extra_data_field.set_attributes_from_name("extra_data")
+                extra_data_field.model = RecurringUserPlan
+                schema_editor.add_field(RecurringUserPlan, extra_data_field)
+        finally:
+            if actual_db_table != expected_db_table:
+                RecurringUserPlan._meta.db_table = original_db_table
 
 
 def remove_wallet_fields(apps, schema_editor):
@@ -185,7 +193,6 @@ def remove_wallet_fields(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [
         ("plans_payments", "0005_payment_plans_payme_status_9ad17d_idx_and_more"),
-        migrations.swappable_dependency(settings.PLANS_RECURRINGUSERPLAN_MODEL),
     ]
 
     operations = [
@@ -197,13 +204,189 @@ class Migration(migrations.Migration):
                 ),
             ],
             state_operations=[
-                # Register RecurringUserPlan in plans_payments migration state with ALL fields
-                # This tells Django that when the model is swapped to plans_payments,
-                # it should be tracked in this app's migration history with all fields
-                # from AbstractRecurringUserPlan + BaseWallet
+                # Register RecurringUserPlan in plans_payments migration state
+                # Uses STATIC field definitions to avoid import-time circular dependencies
                 migrations.CreateModel(
                     name="RecurringUserPlan",
-                    fields=_get_all_recurring_user_plan_fields(),
+                    fields=[
+                        # Primary key
+                        (
+                            "id",
+                            models.AutoField(
+                                auto_created=True,
+                                primary_key=True,
+                                serialize=False,
+                                verbose_name="ID",
+                            ),
+                        ),
+                        # From BaseMixin (django-plans)
+                        (
+                            "created",
+                            models.DateTimeField(
+                                auto_now_add=True,
+                                blank=True,
+                                db_index=True,
+                                null=True,
+                                verbose_name="created",
+                            ),
+                        ),
+                        ("updated_at", models.DateTimeField(auto_now=True, null=True)),
+                        # From AbstractRecurringUserPlan
+                        (
+                            "user_plan",
+                            models.OneToOneField(
+                                on_delete=models.deletion.CASCADE,
+                                related_name="recurring",
+                                to="plans.userplan",
+                            ),
+                        ),
+                        (
+                            "token",
+                            models.CharField(
+                                blank=True,
+                                default=None,
+                                help_text=(
+                                    "Token, that will be used for payment renewal. "
+                                    "Depends on used payment provider"
+                                ),
+                                max_length=255,
+                                null=True,
+                                verbose_name="recurring token",
+                            ),
+                        ),
+                        (
+                            "payment_provider",
+                            models.CharField(
+                                blank=True,
+                                default=None,
+                                help_text="Provider, that will be used for payment renewal",
+                                max_length=255,
+                                null=True,
+                                verbose_name="payment provider",
+                            ),
+                        ),
+                        (
+                            "pricing",
+                            models.ForeignKey(
+                                blank=True,
+                                default=None,
+                                help_text="Recurring pricing",
+                                null=True,
+                                on_delete=models.deletion.CASCADE,
+                                to="plans.pricing",
+                            ),
+                        ),
+                        (
+                            "amount",
+                            models.DecimalField(
+                                blank=True,
+                                db_index=True,
+                                decimal_places=2,
+                                max_digits=7,
+                                null=True,
+                                verbose_name="amount",
+                            ),
+                        ),
+                        (
+                            "tax",
+                            models.DecimalField(
+                                blank=True,
+                                db_index=True,
+                                decimal_places=2,
+                                max_digits=4,
+                                null=True,
+                                verbose_name="tax",
+                            ),
+                        ),
+                        (
+                            "currency",
+                            models.CharField(max_length=3, verbose_name="currency"),
+                        ),
+                        (
+                            "renewal_triggered_by",
+                            models.IntegerField(
+                                choices=[(1, "other"), (2, "user"), (3, "task")],
+                                db_index=True,
+                                default=2,
+                                help_text=(
+                                    "The source of the associated plan's renewal "
+                                    "(USER = user-initiated renewal, "
+                                    "TASK = autorenew_account-task-initiated renewal, "
+                                    "OTHER = renewal is triggered using another mechanism)."
+                                ),
+                                verbose_name="renewal triggered by",
+                            ),
+                        ),
+                        (
+                            "_has_automatic_renewal_backup_deprecated",
+                            models.BooleanField(
+                                db_column="has_automatic_renewal",
+                                default=False,
+                                help_text=(
+                                    "Automatic renewal is enabled for associated plan. "
+                                    "If False, the plan renewal can be still initiated by user."
+                                ),
+                                verbose_name="has automatic plan renewal",
+                            ),
+                        ),
+                        (
+                            "token_verified",
+                            models.BooleanField(
+                                default=False,
+                                help_text=(
+                                    "The recurring token has been verified "
+                                    "by at least one payment to be working."
+                                ),
+                                verbose_name="token has been verified by payment",
+                            ),
+                        ),
+                        (
+                            "card_expire_year",
+                            models.IntegerField(blank=True, null=True),
+                        ),
+                        (
+                            "card_expire_month",
+                            models.IntegerField(blank=True, null=True),
+                        ),
+                        (
+                            "card_masked_number",
+                            models.CharField(blank=True, max_length=255, null=True),
+                        ),
+                        (
+                            "last_renewal_attempt",
+                            models.DateTimeField(
+                                blank=True,
+                                null=True,
+                                verbose_name="last renewal attempt",
+                            ),
+                        ),
+                        # From BaseWallet (django-payments)
+                        (
+                            "status",
+                            models.CharField(
+                                choices=[
+                                    ("pending", "Pending"),
+                                    ("active", "Active"),
+                                    ("erased", "Erased"),
+                                ],
+                                default="pending",
+                                max_length=10,
+                            ),
+                        ),
+                        (
+                            "extra_data",
+                            models.JSONField(
+                                blank=False,
+                                default=dict,
+                                help_text=(
+                                    "Provider-specific data "
+                                    "(e.g., card details, expiry dates, customer IDs)"
+                                ),
+                                null=False,
+                                verbose_name="extra data",
+                            ),
+                        ),
+                    ],
                     options={
                         "swappable": "PLANS_RECURRINGUSERPLAN_MODEL",
                         "db_table": "plans_recurringuserplan",

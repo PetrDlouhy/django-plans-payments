@@ -51,7 +51,7 @@ class RecurringUserPlan(AbstractRecurringUserPlan, BaseWallet):
 
     class Meta(AbstractRecurringUserPlan.Meta):
         abstract = False
-        # Don't set app_label - let it default to plans_payments
+        app_label = "plans_payments"
         # The swappable system will handle model registration
         swappable = swappable_setting("plans", "RecurringUserPlan")
         # When model is swapped, use the existing table name from plans app
@@ -59,11 +59,20 @@ class RecurringUserPlan(AbstractRecurringUserPlan, BaseWallet):
         db_table = "plans_recurringuserplan"
 
     def payment_completed(self, payment):
-        """Called after successful wallet payment."""
+        """Called after wallet payment attempt.
+
+        Updates wallet status based on payment result:
+        - CONFIRMED: Sets wallet to ACTIVE and marks token as verified
+        - REJECTED/ERROR: Sets wallet to ERROR (token remains unverified)
+        - Other statuses: No change to wallet status
+        """
         if payment.status == PaymentStatus.CONFIRMED:
             self.status = WalletStatus.ACTIVE
             self.token_verified = True
             self.save(update_fields=["status", "token_verified"])
+        elif payment.status in (PaymentStatus.REJECTED, PaymentStatus.ERROR):
+            self.status = WalletStatus.ERROR
+            self.save(update_fields=["status"])
 
 
 class Payment(BasePayment):
@@ -243,10 +252,17 @@ class Payment(BasePayment):
         recurring.status = WalletStatus.ACTIVE
 
         # Store provider-specific data in extra_data (from BaseWallet)
-        if "customer_id" in kwargs:
-            if not recurring.extra_data:
-                recurring.extra_data = {}
-            recurring.extra_data["customer_id"] = kwargs.pop("customer_id")
+        # This allows any provider to store additional data via kwargs (e.g., customer_id for Stripe)
+        if hasattr(recurring, "extra_data"):
+            if not isinstance(recurring.extra_data, dict):
+                raise ValueError(
+                    f"extra_data must be dict, got {type(recurring.extra_data)}"
+                )
+            # Store any provider-specific kwargs in extra_data (excluding already processed ones)
+            processed_keys = {"automatic_renewal", "renewal_triggered_by"}
+            for key, value in kwargs.items():
+                if key not in processed_keys:
+                    recurring.extra_data[key] = value
 
         recurring.save()
 
@@ -260,22 +276,6 @@ class Payment(BasePayment):
             card_masked_number=card_masked_number,
             renewal_triggered_by=renewal_triggered_by,
         )
-
-        # Store provider-specific data in RecurringUserPlan.extra_data (if field exists)
-        # This allows any provider to store additional data via kwargs (e.g., customer_id for Stripe)
-        if hasattr(self.order.user.userplan.recurring, "extra_data"):
-            recurring_plan = self.order.user.userplan.recurring
-            if not isinstance(recurring_plan.extra_data, dict):
-                raise ValueError(
-                    f"extra_data must be dict, got {type(recurring_plan.extra_data)}"
-                )
-            # Store any provider-specific kwargs in extra_data (excluding already processed ones)
-            processed_keys = {"automatic_renewal", "renewal_triggered_by"}
-            for key, value in kwargs.items():
-                if key not in processed_keys:
-                    recurring_plan.extra_data[key] = value
-            if recurring_plan.extra_data:
-                recurring_plan.save(update_fields=["extra_data"])
 
 
 @receiver(status_changed, sender=Payment)

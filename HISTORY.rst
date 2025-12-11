@@ -3,6 +3,15 @@
 History
 -------
 
+2.1.0 (2025-12-09)
+++++++++++++++++++
+
+* Add wallet interface to RecurringUserPlan (inherits from BaseWallet)
+* Add ``get_renew_data()`` method for provider-specific renewal data
+* Add support for storing customer_id and other provider-specific data in extra_data
+* Improve wallet status handling for payment failures
+* Requires django-payments from model-payu branch (implements recurring payments interface)
+
 2.0.2 (2025-05-29)
 ++++++++++++++++++
 
