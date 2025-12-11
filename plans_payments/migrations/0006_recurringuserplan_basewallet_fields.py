@@ -194,6 +194,9 @@ class Migration(migrations.Migration):
     dependencies = [
         ("plans_payments", "0005_payment_plans_payme_status_9ad17d_idx_and_more"),
         migrations.swappable_dependency(settings.PLANS_RECURRINGUSERPLAN_MODEL),
+        # Explicit dependency on the migration that originally created the table
+        # Without this, Django might try to run this migration before the table exists
+        ("plans", "0005_recurring_payments"),
     ]
 
     operations = [
