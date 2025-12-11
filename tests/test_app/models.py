@@ -12,4 +12,3 @@ class Order(models.Model):
         blank=True,
     )
     name = models.CharField(max_length=100)
-

@@ -193,6 +193,7 @@ def remove_wallet_fields(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [
         ("plans_payments", "0005_payment_plans_payme_status_9ad17d_idx_and_more"),
+        migrations.swappable_dependency(settings.PLANS_RECURRINGUSERPLAN_MODEL),
     ]
 
     operations = [

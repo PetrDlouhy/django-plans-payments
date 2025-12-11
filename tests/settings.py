@@ -29,7 +29,6 @@ INSTALLED_APPS = [
     "payments",
     "plans_payments",
     "tests",
-    "tests.test_app",
 ]
 
 SITE_ID = 1

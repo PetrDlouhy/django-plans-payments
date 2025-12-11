@@ -9,17 +9,23 @@ the model won't exist in the migration state yet, causing:
 ValueError: Related model 'plans_payments.recurringuserplan' cannot be resolved
 
 To manually replicate the error:
-1. Run: python manage.py migrate plans_payments 0005
-2. Run: python manage.py migrate test_app
-3. This will fail with the error above
+1. Run: DJANGO_SETTINGS_MODULE=tests.settings_blenderkit_scenario python manage.py test tests.test_blenderkit_scenario
+2. Or manually: python manage.py migrate plans_payments 0005 && python manage.py migrate test_app
 
-This test verifies that the error occurs when test_app migration runs before 0006.
+This test only runs when test_app is in INSTALLED_APPS (i.e., with settings_blenderkit_scenario.py).
 """
 
+import unittest
+
+from django.apps import apps
 from django.core.management import call_command
 from django.test import TransactionTestCase, override_settings
 
 
+@unittest.skipUnless(
+    apps.is_installed("tests.test_app"),
+    "test_app must be in INSTALLED_APPS (use settings_blenderkit_scenario.py)",
+)
 @override_settings(PLANS_RECURRINGUSERPLAN_MODEL="plans_payments.RecurringUserPlan")
 class BlenderKitScenarioTestCase(TransactionTestCase):
     """
@@ -29,44 +35,22 @@ class BlenderKitScenarioTestCase(TransactionTestCase):
 
     def test_migration_with_external_fk_to_recurring_user_plan(self):
         """
-        This REPLICATES the BlenderKit error.
+        Test that swappable_dependency in migration 0006 fixes the BlenderKit error.
 
-        The error occurs when:
-        1. test_app has a migration creating Order with FK to RecurringUserPlan
-        2. Swappable setting resolves this to 'plans_payments.RecurringUserPlan'
-        3. Migration 0006 creates the model in migration state, but if test_app
-           migration runs before 0006, Django can't resolve the model
-        4. This happens when migrations are run in a specific order or when
-           test_app migration doesn't have swappable_dependency declared
+        This test verifies that when another app (test_app) has a ForeignKey to the
+        swappable RecurringUserPlan, migrations run correctly because migration 0006
+        declares swappable_dependency, which ensures 0006 runs before test_app's migration.
 
-        To replicate: Run migrations up to 0005, then try to run test_app migration.
-        This should fail with ValueError: Related model 'plans_payments.recurringuserplan' cannot be resolved
+        Without swappable_dependency, test_app's migration would fail with:
+        ValueError: Related model 'plans_payments.recurringuserplan' cannot be resolved
+
+        With swappable_dependency (current implementation), migrations should work correctly.
         """
-        # Step 1: Run migrations up to 0005 (before 0006 creates RecurringUserPlan)
-        call_command(
-            "migrate",
-            "plans_payments",
-            "0005_payment_plans_payme_status_9ad17d_idx_and_more",
-            verbosity=0,
-            interactive=False,
-        )
+        # Run all migrations - this should work correctly with swappable_dependency
+        call_command("migrate", verbosity=0, interactive=False)
 
-        # Step 2: Try to run test_app migration before 0006
-        # This should fail with the BlenderKit error
-        # The error can manifest in two ways:
-        # 1. "Related model 'plans_payments.recurringuserplan' cannot be resolved" (during CreateModel)
-        # 2. "app 'plans_payments' doesn't provide model 'recurringuserplan'" (during state construction)
-        # Both indicate the same root cause: model doesn't exist in migration state
-        try:
-            call_command("migrate", "test_app", verbosity=0, interactive=False)
-            self.fail("Expected ValueError when migrating test_app before 0006")
-        except ValueError as e:
-            # Verify we got a related error (either form indicates the bug is replicated)
-            error_msg = str(e)
-            has_recurringuserplan = "recurringuserplan" in error_msg.lower()
-            has_resolution_error = "cannot be resolved" in error_msg or "doesn't provide model" in error_msg
+        # Verify test_app.Order model exists and can be imported
+        from tests.test_app.models import Order
 
-            self.assertTrue(
-                has_recurringuserplan and has_resolution_error,
-                f"Expected error about recurringuserplan resolution, got: {error_msg}",
-            )
+        # Verify the ForeignKey to RecurringUserPlan works
+        self.assertIsNotNone(Order._meta.get_field("recurring_plan"))
