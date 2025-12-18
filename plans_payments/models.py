@@ -102,6 +102,13 @@ class Payment(BasePayment):
             # TODO: base this on actual payment methods and currency fees on PayU
             # or even better on real PayU info
             self.transaction_fee = self.total * Decimal("0.029") + Decimal("0.05")
+        elif "stripe" in self.variant:
+            # Extract Stripe fee from attrs (set by django-payments StripeProviderV3)
+            if hasattr(self, "attrs") and hasattr(self.attrs, "stripe_fee"):
+                stripe_fee = self.attrs.stripe_fee
+                if stripe_fee is not None:
+                    # Stripe fee is in cents, convert to currency units
+                    self.transaction_fee = Decimal(stripe_fee) / Decimal("100")
         elif hasattr(self, "extra_data") and self.extra_data:
             extra_data = json.loads(self.extra_data)
             if "response" in extra_data:

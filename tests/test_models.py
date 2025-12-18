@@ -86,6 +86,41 @@ class TestPlansPayments(TestCase):
         rp = models.Payment.objects.get()
         self.assertEqual(rp.transaction_fee, Decimal("0.34"))
 
+    def test_save_stripe_with_fee(self):
+        """Save with Stripe variant and fee in attrs"""
+        p = models.Payment(variant="stripe", total=Decimal("10.00"))
+        # Set stripe_fee via attrs (fee is in cents from Stripe API)
+        p.attrs.stripe_fee = 123  # $1.23 in cents
+        p.save()
+        rp = models.Payment.objects.get()
+        self.assertEqual(rp.transaction_fee, Decimal("1.23"))
+
+    def test_save_stripe_without_fee(self):
+        """Save with Stripe variant but no fee in attrs"""
+        p = models.Payment(variant="stripe", total=Decimal("10.00"))
+        # Set stripe_fee to None
+        p.attrs.stripe_fee = None
+        p.save()
+        rp = models.Payment.objects.get()
+        self.assertEqual(rp.transaction_fee, Decimal("0.0"))
+
+    def test_save_stripe_no_attrs(self):
+        """Save with Stripe variant but no attrs"""
+        p = models.Payment(variant="stripe", total=Decimal("10.00"))
+        # Don't set any attrs - extra_data will be empty
+        p.save()
+        rp = models.Payment.objects.get()
+        self.assertEqual(rp.transaction_fee, Decimal("0.0"))
+
+    def test_save_stripe_zero_dollar_with_fee(self):
+        """Save with stripe-zero-dollar variant and fee in attrs"""
+        p = models.Payment(variant="stripe-zero-dollar", total=Decimal("0.00"))
+        # Zero-dollar auth has no fee
+        p.attrs.stripe_fee = 0
+        p.save()
+        rp = models.Payment.objects.get()
+        self.assertEqual(rp.transaction_fee, Decimal("0.0"))
+
     def test_double_save_paypal(self):
         """
         Save with payment varian paypal
