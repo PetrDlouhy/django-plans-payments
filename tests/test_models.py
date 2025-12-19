@@ -554,6 +554,24 @@ class TestPlansPayments(TestCase):
         recurring_user_plan.refresh_from_db()
         self.assertEqual(recurring_user_plan.token_verified, True)
 
+    def test_payment_completed_rejected_sets_wallet_status_error(self):
+        """Test that payment_completed sets wallet status to ERROR when payment is REJECTED"""
+        user = baker.make("User")
+        order = baker.make("Order", status=Order.STATUS.NEW, user=user)
+        payment = models.Payment(order=order, status=PaymentStatus.REJECTED)
+        userplan = baker.make("UserPlan", user=user)
+        recurring_user_plan = baker.make(
+            "plans_payments.RecurringUserPlan",
+            user_plan=userplan,
+            status=WalletStatus.PENDING,
+        )
+
+        # Call payment_completed directly to test the method
+        recurring_user_plan.payment_completed(payment)
+
+        recurring_user_plan.refresh_from_db()
+        self.assertEqual(recurring_user_plan.status, WalletStatus.ERROR)
+
     def test_change_payment_status_error_token_verified_unchanged(self):
         """Test that token_verified remains True when payment has error status"""
         p = models.Payment(
@@ -569,6 +587,64 @@ class TestPlansPayments(TestCase):
         self.assertEqual(p.order.status, Order.STATUS.CANCELED)
         recurring_user_plan.refresh_from_db()
         self.assertEqual(recurring_user_plan.token_verified, True)
+
+    def test_payment_completed_error_sets_wallet_status_error(self):
+        """Test that payment_completed sets wallet status to ERROR when payment has ERROR status"""
+        user = baker.make("User")
+        order = baker.make("Order", status=Order.STATUS.NEW, user=user)
+        payment = models.Payment(order=order, status=PaymentStatus.ERROR)
+        userplan = baker.make("UserPlan", user=user)
+        recurring_user_plan = baker.make(
+            "plans_payments.RecurringUserPlan",
+            user_plan=userplan,
+            status=WalletStatus.PENDING,
+        )
+
+        # Call payment_completed directly to test the method
+        recurring_user_plan.payment_completed(payment)
+
+        recurring_user_plan.refresh_from_db()
+        self.assertEqual(recurring_user_plan.status, WalletStatus.ERROR)
+
+    def test_payment_completed_rejected_from_active_wallet(self):
+        """Test that REJECTED payment sets wallet status to ERROR even when wallet was ACTIVE"""
+        user = baker.make("User")
+        order = baker.make("Order", status=Order.STATUS.NEW, user=user)
+        payment = models.Payment(order=order, status=PaymentStatus.REJECTED)
+        userplan = baker.make("UserPlan", user=user)
+        recurring_user_plan = baker.make(
+            "plans_payments.RecurringUserPlan",
+            user_plan=userplan,
+            status=WalletStatus.ACTIVE,
+            token_verified=True,
+        )
+
+        recurring_user_plan.payment_completed(payment)
+
+        recurring_user_plan.refresh_from_db()
+        self.assertEqual(recurring_user_plan.status, WalletStatus.ERROR)
+        # token_verified should remain unchanged
+        self.assertTrue(recurring_user_plan.token_verified)
+
+    def test_payment_completed_error_from_active_wallet(self):
+        """Test that ERROR payment sets wallet status to ERROR even when wallet was ACTIVE"""
+        user = baker.make("User")
+        order = baker.make("Order", status=Order.STATUS.NEW, user=user)
+        payment = models.Payment(order=order, status=PaymentStatus.ERROR)
+        userplan = baker.make("UserPlan", user=user)
+        recurring_user_plan = baker.make(
+            "plans_payments.RecurringUserPlan",
+            user_plan=userplan,
+            status=WalletStatus.ACTIVE,
+            token_verified=True,
+        )
+
+        recurring_user_plan.payment_completed(payment)
+
+        recurring_user_plan.refresh_from_db()
+        self.assertEqual(recurring_user_plan.status, WalletStatus.ERROR)
+        # token_verified should remain unchanged
+        self.assertTrue(recurring_user_plan.token_verified)
 
     def test_change_payment_status_rejected_token_verified_false_unchanged(self):
         """Test that token_verified remains False when payment is rejected and token was never verified"""
