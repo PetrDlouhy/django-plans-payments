@@ -16,10 +16,13 @@ import pytz
 from django.test import TestCase, override_settings
 from freezegun import freeze_time
 from model_bakery import baker
-from payments import PaymentStatus
-from plans.models import Invoice, Order, RecurringUserPlan
+from payments import PaymentStatus, WalletStatus
+from plans.models import Invoice, Order
+from swapper import load_model
 
 from plans_payments import models
+
+RecurringUserPlan = load_model("plans", "RecurringUserPlan")
 
 
 class TestPlansPayments(TestCase):
@@ -82,6 +85,41 @@ class TestPlansPayments(TestCase):
         p.save()
         rp = models.Payment.objects.get()
         self.assertEqual(rp.transaction_fee, Decimal("0.34"))
+
+    def test_save_stripe_with_fee(self):
+        """Save with Stripe variant and fee in attrs"""
+        p = models.Payment(variant="stripe", total=Decimal("10.00"))
+        # Set stripe_fee via attrs (fee is in cents from Stripe API)
+        p.attrs.stripe_fee = 123  # $1.23 in cents
+        p.save()
+        rp = models.Payment.objects.get()
+        self.assertEqual(rp.transaction_fee, Decimal("1.23"))
+
+    def test_save_stripe_without_fee(self):
+        """Save with Stripe variant but no fee in attrs"""
+        p = models.Payment(variant="stripe", total=Decimal("10.00"))
+        # Set stripe_fee to None
+        p.attrs.stripe_fee = None
+        p.save()
+        rp = models.Payment.objects.get()
+        self.assertEqual(rp.transaction_fee, Decimal("0.0"))
+
+    def test_save_stripe_no_attrs(self):
+        """Save with Stripe variant but no attrs"""
+        p = models.Payment(variant="stripe", total=Decimal("10.00"))
+        # Don't set any attrs - extra_data will be empty
+        p.save()
+        rp = models.Payment.objects.get()
+        self.assertEqual(rp.transaction_fee, Decimal("0.0"))
+
+    def test_save_stripe_zero_dollar_with_fee(self):
+        """Save with stripe-zero-dollar variant and fee in attrs"""
+        p = models.Payment(variant="stripe-zero-dollar", total=Decimal("0.00"))
+        # Zero-dollar auth has no fee
+        p.attrs.stripe_fee = 0
+        p.save()
+        rp = models.Payment.objects.get()
+        self.assertEqual(rp.transaction_fee, Decimal("0.0"))
 
     def test_double_save_paypal(self):
         """
@@ -188,7 +226,7 @@ class TestPlansPayments(TestCase):
         p = models.Payment(order=baker.make("Order", user=user), variant="default")
         userplan = baker.make("UserPlan", user=user, order__user=user)
         baker.make(
-            "RecurringUserPlan",
+            "plans_payments.RecurringUserPlan",
             user_plan=userplan,
             token_verified=True,
             token="token",
@@ -202,11 +240,12 @@ class TestPlansPayments(TestCase):
         p = models.Payment(order=baker.make("Order", user=user), variant="default")
         userplan = baker.make("UserPlan", user=user, order__user=user)
         baker.make(
-            "RecurringUserPlan",
+            "plans_payments.RecurringUserPlan",
             user_plan=userplan,
             token_verified=True,
             token="token",
             payment_provider="default",
+            status=WalletStatus.ACTIVE,
         )
         result = p.get_renew_data()
         self.assertEqual(result, {"token": "token"})
@@ -217,11 +256,12 @@ class TestPlansPayments(TestCase):
         p = models.Payment(order=baker.make("Order", user=user), variant="default")
         userplan = baker.make("UserPlan", user=user, order__user=user)
         recurring = baker.make(
-            "RecurringUserPlan",
+            "plans_payments.RecurringUserPlan",
             user_plan=userplan,
             token_verified=True,
             token="token",
             payment_provider="default",
+            status="active",
         )
         # Add extra_data if the model supports it
         if hasattr(recurring, "extra_data"):
@@ -242,11 +282,12 @@ class TestPlansPayments(TestCase):
         p = models.Payment(order=baker.make("Order", user=user), variant="default")
         userplan = baker.make("UserPlan", user=user, order__user=user)
         baker.make(
-            "RecurringUserPlan",
+            "plans_payments.RecurringUserPlan",
             user_plan=userplan,
             token_verified=False,
             token="token",
             payment_provider="default",
+            status=WalletStatus.PENDING,
         )
         result = p.get_renew_data()
         self.assertIsNone(result)
@@ -257,11 +298,12 @@ class TestPlansPayments(TestCase):
         p = models.Payment(order=baker.make("Order", user=user), variant="default")
         userplan = baker.make("UserPlan", user=user, order__user=user)
         baker.make(
-            "RecurringUserPlan",
+            "plans_payments.RecurringUserPlan",
             user_plan=userplan,
             token_verified=True,
             token="token",
             payment_provider="default",
+            status=WalletStatus.ACTIVE,
         )
         result = p.get_renew_data()
         self.assertEqual(result, {"token": "token"})
@@ -441,7 +483,9 @@ class TestPlansPayments(TestCase):
             status=PaymentStatus.CONFIRMED,
         )
         userplan = baker.make("UserPlan", user=p.order.user)
-        recurring_user_plan = baker.make("RecurringUserPlan", user_plan=userplan)
+        recurring_user_plan = baker.make(
+            "plans_payments.RecurringUserPlan", user_plan=userplan
+        )
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "confirmed")
         self.assertEqual(recurring_user_plan.token_verified, True)
@@ -456,7 +500,7 @@ class TestPlansPayments(TestCase):
         )
         userplan = baker.make("UserPlan", user=p.order.user)
         baker.make("BillingInfo", user=p.order.user)
-        baker.make("RecurringUserPlan", user_plan=userplan)
+        baker.make("plans_payments.RecurringUserPlan", user_plan=userplan)
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.order.completed, datetime(2018, 1, 1, 0, 0, tzinfo=pytz.UTC))
 
@@ -476,7 +520,7 @@ class TestPlansPayments(TestCase):
         )
         userplan = baker.make("UserPlan", user=p.order.user)
         recurring_user_plan = baker.make(
-            "RecurringUserPlan", user_plan=userplan, token_verified=True
+            "plans_payments.RecurringUserPlan", user_plan=userplan, token_verified=True
         )
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "rejected")
@@ -502,13 +546,31 @@ class TestPlansPayments(TestCase):
         )
         userplan = baker.make("UserPlan", user=p.order.user)
         recurring_user_plan = baker.make(
-            "RecurringUserPlan", user_plan=userplan, token_verified=True
+            "plans_payments.RecurringUserPlan", user_plan=userplan, token_verified=True
         )
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "rejected")
         self.assertEqual(p.order.status, Order.STATUS.CANCELED)
         recurring_user_plan.refresh_from_db()
         self.assertEqual(recurring_user_plan.token_verified, True)
+
+    def test_payment_completed_rejected_sets_wallet_status_error(self):
+        """Test that payment_completed sets wallet status to ERROR when payment is REJECTED"""
+        user = baker.make("User")
+        order = baker.make("Order", status=Order.STATUS.NEW, user=user)
+        payment = models.Payment(order=order, status=PaymentStatus.REJECTED)
+        userplan = baker.make("UserPlan", user=user)
+        recurring_user_plan = baker.make(
+            "plans_payments.RecurringUserPlan",
+            user_plan=userplan,
+            status=WalletStatus.PENDING,
+        )
+
+        # Call payment_completed directly to test the method
+        recurring_user_plan.payment_completed(payment)
+
+        recurring_user_plan.refresh_from_db()
+        self.assertEqual(recurring_user_plan.status, WalletStatus.ERROR)
 
     def test_change_payment_status_error_token_verified_unchanged(self):
         """Test that token_verified remains True when payment has error status"""
@@ -518,13 +580,71 @@ class TestPlansPayments(TestCase):
         )
         userplan = baker.make("UserPlan", user=p.order.user)
         recurring_user_plan = baker.make(
-            "RecurringUserPlan", user_plan=userplan, token_verified=True
+            "plans_payments.RecurringUserPlan", user_plan=userplan, token_verified=True
         )
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "error")
         self.assertEqual(p.order.status, Order.STATUS.CANCELED)
         recurring_user_plan.refresh_from_db()
         self.assertEqual(recurring_user_plan.token_verified, True)
+
+    def test_payment_completed_error_sets_wallet_status_error(self):
+        """Test that payment_completed sets wallet status to ERROR when payment has ERROR status"""
+        user = baker.make("User")
+        order = baker.make("Order", status=Order.STATUS.NEW, user=user)
+        payment = models.Payment(order=order, status=PaymentStatus.ERROR)
+        userplan = baker.make("UserPlan", user=user)
+        recurring_user_plan = baker.make(
+            "plans_payments.RecurringUserPlan",
+            user_plan=userplan,
+            status=WalletStatus.PENDING,
+        )
+
+        # Call payment_completed directly to test the method
+        recurring_user_plan.payment_completed(payment)
+
+        recurring_user_plan.refresh_from_db()
+        self.assertEqual(recurring_user_plan.status, WalletStatus.ERROR)
+
+    def test_payment_completed_rejected_from_active_wallet(self):
+        """Test that REJECTED payment sets wallet status to ERROR even when wallet was ACTIVE"""
+        user = baker.make("User")
+        order = baker.make("Order", status=Order.STATUS.NEW, user=user)
+        payment = models.Payment(order=order, status=PaymentStatus.REJECTED)
+        userplan = baker.make("UserPlan", user=user)
+        recurring_user_plan = baker.make(
+            "plans_payments.RecurringUserPlan",
+            user_plan=userplan,
+            status=WalletStatus.ACTIVE,
+            token_verified=True,
+        )
+
+        recurring_user_plan.payment_completed(payment)
+
+        recurring_user_plan.refresh_from_db()
+        self.assertEqual(recurring_user_plan.status, WalletStatus.ERROR)
+        # token_verified should remain unchanged
+        self.assertTrue(recurring_user_plan.token_verified)
+
+    def test_payment_completed_error_from_active_wallet(self):
+        """Test that ERROR payment sets wallet status to ERROR even when wallet was ACTIVE"""
+        user = baker.make("User")
+        order = baker.make("Order", status=Order.STATUS.NEW, user=user)
+        payment = models.Payment(order=order, status=PaymentStatus.ERROR)
+        userplan = baker.make("UserPlan", user=user)
+        recurring_user_plan = baker.make(
+            "plans_payments.RecurringUserPlan",
+            user_plan=userplan,
+            status=WalletStatus.ACTIVE,
+            token_verified=True,
+        )
+
+        recurring_user_plan.payment_completed(payment)
+
+        recurring_user_plan.refresh_from_db()
+        self.assertEqual(recurring_user_plan.status, WalletStatus.ERROR)
+        # token_verified should remain unchanged
+        self.assertTrue(recurring_user_plan.token_verified)
 
     def test_change_payment_status_rejected_token_verified_false_unchanged(self):
         """Test that token_verified remains False when payment is rejected and token was never verified"""
@@ -534,7 +654,7 @@ class TestPlansPayments(TestCase):
         )
         userplan = baker.make("UserPlan", user=p.order.user)
         recurring_user_plan = baker.make(
-            "RecurringUserPlan", user_plan=userplan, token_verified=False
+            "plans_payments.RecurringUserPlan", user_plan=userplan, token_verified=False
         )
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "rejected")
@@ -626,7 +746,7 @@ class TestPlansPayments(TestCase):
         user = baker.make("User")
         userplan = baker.make("UserPlan", user=user)
         baker.make(
-            "RecurringUserPlan",
+            "plans_payments.RecurringUserPlan",
             user_plan=userplan,
             renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
         )
@@ -645,7 +765,7 @@ class TestPlansPayments(TestCase):
         plan_pricing = baker.make("PlanPricing", plan=userplan.plan, price=12)
         baker.make("BillingInfo", user=user)
         baker.make(
-            "RecurringUserPlan",
+            "plans_payments.RecurringUserPlan",
             user_plan=userplan,
             payment_provider="default",
             renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
@@ -674,7 +794,7 @@ class TestPlansPayments(TestCase):
         user = baker.make("User")
         userplan = baker.make("UserPlan", user=user)
         baker.make(
-            "RecurringUserPlan",
+            "plans_payments.RecurringUserPlan",
             user_plan=userplan,
             payment_provider="default",
             renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.USER,
@@ -692,7 +812,7 @@ class TestPlansPayments(TestCase):
         user = baker.make("User")
         userplan = baker.make("UserPlan", user=user)
         baker.make(
-            "RecurringUserPlan",
+            "plans_payments.RecurringUserPlan",
             user_plan=userplan,
             payment_provider="default",
             renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.OTHER,
@@ -720,7 +840,7 @@ class TestPlansPayments(TestCase):
         plan_pricing = baker.make("PlanPricing", plan=userplan.plan, price=12)
         baker.make("BillingInfo", user=user)
         recurring = baker.make(
-            "RecurringUserPlan",
+            "plans_payments.RecurringUserPlan",
             user_plan=userplan,
             payment_provider="default",
             renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
@@ -773,7 +893,7 @@ class TestPlansPayments(TestCase):
         plan_pricing = baker.make("PlanPricing", plan=userplan.plan, price=12)
         baker.make("BillingInfo", user=user)
         baker.make(
-            "RecurringUserPlan",
+            "plans_payments.RecurringUserPlan",
             user_plan=userplan,
             payment_provider="default",
             renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
