@@ -1,6 +1,7 @@
 from django.test import TestCase
 from django.urls import reverse
 from model_bakery import baker
+from payments import PaymentStatus
 
 from plans_payments.models import Payment
 
@@ -20,17 +21,16 @@ class PaymentDetailsViewTests(TestCase):
             reverse("payment_details", kwargs={"payment_id": payment.id})
         )
         self.assertEqual(response.status_code, 200)
+        # Build the expected options from PaymentStatus.CHOICES so the test
+        # keeps passing across django-payments versions (e.g. the addition
+        # of the "cancelled" status).
+        status_options = "".join(
+            f'<option value="{value}">{label}</option>'
+            for value, label in PaymentStatus.CHOICES
+        )
         self.assertContains(
             response,
-            '<select name="status" id="id_status">'
-            '<option value="waiting">Waiting for confirmation</option>'
-            '<option value="preauth">Pre-authorized</option>'
-            '<option value="confirmed">Confirmed</option>'
-            '<option value="rejected">Rejected</option>'
-            '<option value="refunded">Refunded</option>'
-            '<option value="error">Error</option>'
-            '<option value="input">Input</option>'
-            "</select>",
+            f'<select name="status" id="id_status">{status_options}</select>',
             html=True,
         )
 
