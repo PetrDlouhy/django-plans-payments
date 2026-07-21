@@ -3,6 +3,17 @@
 History
 -------
 
+2.1.0 (2026-07-21)
+++++++++++++++++++
+
+* Don't disable ``token_verified`` on an unsuccessful renewal attempt, so a
+  transient payment failure no longer permanently disarms automatic renewals
+* Add ``get_renew_data()`` and pass provider metadata (e.g. Stripe
+  ``customer_id``) through ``set_renew_token(**kwargs)``
+* Add migration for the new django-payments ``PaymentStatus.CANCELLED``
+  (choices-only, database no-op)
+* Tests: drop the unused ``pytz`` dependency, satisfy current black
+
 2.0.2 (2025-05-29)
 ++++++++++++++++++
 
