@@ -7,12 +7,13 @@ test_django-plans-payments
 
 Tests for `django-plans-payments` models module.
 """
+
 import json
 import warnings
 from datetime import datetime
+from datetime import timezone
 from decimal import Decimal
 
-import pytz
 from django.test import TestCase, override_settings
 from freezegun import freeze_time
 from model_bakery import baker
@@ -458,14 +459,18 @@ class TestPlansPayments(TestCase):
         baker.make("BillingInfo", user=p.order.user)
         baker.make("RecurringUserPlan", user_plan=userplan)
         models.change_payment_status("sender", instance=p)
-        self.assertEqual(p.order.completed, datetime(2018, 1, 1, 0, 0, tzinfo=pytz.UTC))
+        self.assertEqual(
+            p.order.completed, datetime(2018, 1, 1, 0, 0, tzinfo=timezone.utc)
+        )
 
         # Switch order back to new to simulate concurrent double submit
         p.status = PaymentStatus.REJECTED
 
         with freeze_time("2018-01-02"):
             models.change_payment_status("sender", instance=p)
-        self.assertEqual(p.order.completed, datetime(2018, 1, 1, 0, 0, tzinfo=pytz.UTC))
+        self.assertEqual(
+            p.order.completed, datetime(2018, 1, 1, 0, 0, tzinfo=timezone.utc)
+        )
         # Only one Invoice was created
         self.assertEqual(Invoice.objects.count(), 1)
 
