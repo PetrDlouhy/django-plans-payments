@@ -11,13 +11,12 @@ from django.urls import reverse
 from payments import PaymentStatus, PurchasedItem, RedirectNeeded
 from payments.models import BasePayment
 from payments.signals import status_changed
-
-from .signals import renew_token_invalidated
 from plans.base.models import AbstractRecurringUserPlan
 from plans.contrib import get_user_language, send_template_email
 from plans.models import Order
 from plans.signals import account_automatic_renewal
 
+from .signals import renew_token_invalidated
 from .views import create_payment_object
 
 logger = logging.getLogger(__name__)
