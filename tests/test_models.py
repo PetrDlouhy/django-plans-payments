@@ -12,6 +12,7 @@ import json
 import warnings
 from datetime import datetime, timezone
 from decimal import Decimal
+from unittest import mock
 
 from django.test import TestCase, override_settings
 from freezegun import freeze_time
@@ -817,3 +818,102 @@ class TestPlansPayments(TestCase):
         self.assertNotEqual(p.order, Order.STATUS.CANCELED)
         p.change_status(PaymentStatus.REJECTED)
         self.assertEqual(p.order.status, Order.STATUS.CANCELED)
+
+
+class RenewDataTests(TestCase):
+    """Cover get_renew_data()/set_renew_token() incl. the extra_data paths.
+
+    Released django-plans has no RecurringUserPlan.extra_data field, so the
+    extra_data branches are exercised by patching a class attribute onto
+    RecurringUserPlan (hasattr-guard becomes True).
+    """
+
+    def _payment_with_recurring(self, token_verified=True, provider="default"):
+        user = baker.make("User")
+        userplan = baker.make("UserPlan", user=user)
+        payment = baker.make(models.Payment, order__user=user, variant="default")
+        baker.make(
+            "RecurringUserPlan",
+            user_plan=userplan,
+            payment_provider=provider,
+            token="tok_123",
+            token_verified=token_verified,
+        )
+        return payment
+
+    def test_get_renew_data_returns_token(self):
+        payment = self._payment_with_recurring()
+        self.assertEqual(payment.get_renew_data(), {"token": "tok_123"})
+
+    def test_get_renew_data_none_when_not_verified(self):
+        payment = self._payment_with_recurring(token_verified=False)
+        self.assertIsNone(payment.get_renew_data())
+
+    def test_get_renew_data_none_on_variant_mismatch(self):
+        payment = self._payment_with_recurring(provider="other-variant")
+        self.assertIsNone(payment.get_renew_data())
+
+    def test_get_renew_data_none_without_recurring(self):
+        user = baker.make("User")
+        baker.make("UserPlan", user=user)
+        payment = baker.make(models.Payment, order__user=user, variant="default")
+        self.assertIsNone(payment.get_renew_data())
+
+    def test_get_renew_data_merges_extra_data(self):
+        payment = self._payment_with_recurring()
+        with mock.patch.object(
+            RecurringUserPlan, "extra_data", {"customer_id": "cus_456"}, create=True
+        ):
+            self.assertEqual(
+                payment.get_renew_data(),
+                {"token": "tok_123", "customer_id": "cus_456"},
+            )
+
+    def test_get_renew_data_rejects_non_dict_extra_data(self):
+        payment = self._payment_with_recurring()
+        with mock.patch.object(
+            RecurringUserPlan, "extra_data", "not-a-dict", create=True
+        ):
+            with self.assertRaises(ValueError):
+                payment.get_renew_data()
+
+    def test_set_renew_token_stores_provider_kwargs_in_extra_data(self):
+        payment = self._payment_with_recurring()
+        extra = {}
+        with mock.patch.object(
+            RecurringUserPlan, "extra_data", extra, create=True
+        ), mock.patch.object(RecurringUserPlan, "save") as mock_save:
+            payment.set_renew_token(
+                "tok_new",
+                customer_id="cus_789",
+                renewal_triggered_by="task",
+            )
+        self.assertEqual(extra, {"customer_id": "cus_789"})
+        mock_save.assert_called_with(update_fields=["extra_data"])
+
+    def test_set_renew_token_excludes_processed_kwargs_from_extra_data(self):
+        payment = self._payment_with_recurring()
+        extra = {}
+        with mock.patch.object(
+            RecurringUserPlan, "extra_data", extra, create=True
+        ), mock.patch.object(RecurringUserPlan, "save"):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                payment.set_renew_token("tok_new", automatic_renewal=True)
+        self.assertEqual(extra, {})
+
+    def test_set_renew_token_defaults_to_automatic_renewal_with_warning(self):
+        payment = self._payment_with_recurring()
+        with self.assertWarns(DeprecationWarning):
+            payment.set_renew_token("tok_new")
+        recurring = payment.order.user.userplan.recurring
+        recurring.refresh_from_db()
+        self.assertEqual(
+            recurring.renewal_triggered_by,
+            RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
+        )
+
+    def test_set_renew_token_rejects_invalid_renewal_triggered_by(self):
+        payment = self._payment_with_recurring()
+        with self.assertRaises(ValueError):
+            payment.set_renew_token("tok_new", renewal_triggered_by="nonsense")
