@@ -10,8 +10,7 @@ Tests for `django-plans-payments` models module.
 
 import json
 import warnings
-from datetime import datetime
-from datetime import timezone
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from django.test import TestCase, override_settings
