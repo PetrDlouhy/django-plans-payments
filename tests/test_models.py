@@ -21,6 +21,7 @@ from payments import PaymentStatus
 from plans.models import Invoice, Order, RecurringUserPlan
 
 from plans_payments import models
+from plans_payments.signals import renew_token_invalidated
 
 
 class TestPlansPayments(TestCase):
@@ -196,6 +197,49 @@ class TestPlansPayments(TestCase):
             payment_provider="default",
         )
         self.assertEqual(p.get_renew_token(), "token")
+
+    def test_invalidate_renew_token(self):
+        """A permanent provider token error marks the token unverified.
+
+        Renewal tasks select only token_verified plans and get_renew_token()
+        returns None afterwards; the card metadata stays for the UI. Host
+        apps are notified via the renew_token_invalidated signal so they can
+        prompt the user to update their payment method.
+        """
+        user = baker.make("User")
+        p = models.Payment(order=baker.make("Order", user=user), variant="default")
+        userplan = baker.make("UserPlan", user=user, order__user=user)
+        recurring = baker.make(
+            "RecurringUserPlan",
+            user_plan=userplan,
+            token_verified=True,
+            token="token",
+            payment_provider="default",
+        )
+        received = []
+
+        def receiver(sender, **kwargs):
+            received.append(kwargs)
+
+        renew_token_invalidated.connect(receiver)
+        try:
+            p.invalidate_renew_token()
+        finally:
+            renew_token_invalidated.disconnect(receiver)
+
+        recurring.refresh_from_db()
+        self.assertFalse(recurring.token_verified)
+        self.assertEqual(recurring.token, "token")
+        self.assertIsNone(p.get_renew_token())
+        self.assertEqual(len(received), 1)
+        self.assertEqual(received[0]["payment"], p)
+        self.assertEqual(received[0]["recurring_user_plan"], recurring)
+
+    def test_invalidate_renew_token_without_recurring(self):
+        """Without a recurring plan the call is a silent no-op."""
+        user = baker.make("User")
+        p = models.Payment(order=baker.make("Order", user=user))
+        p.invalidate_renew_token()
 
     def test_get_renew_data(self):
         """Test get_renew_data returns token when wallet is verified"""

@@ -11,6 +11,8 @@ from django.urls import reverse
 from payments import PaymentStatus, PurchasedItem, RedirectNeeded
 from payments.models import BasePayment
 from payments.signals import status_changed
+
+from .signals import renew_token_invalidated
 from plans.base.models import AbstractRecurringUserPlan
 from plans.contrib import get_user_language, send_template_email
 from plans.models import Order
@@ -108,6 +110,26 @@ class Payment(BasePayment):
         except ObjectDoesNotExist:
             pass
         return None
+
+    def invalidate_renew_token(self):
+        """Mark the stored recurring token as unusable.
+
+        Called by payment providers (e.g. django-payments-payu) when the
+        gateway reports a permanent token error - retrying it can never
+        succeed. The token is marked unverified so renewal tasks stop
+        selecting the account and get_renew_token() returns None; the card
+        metadata is kept for the UI. Sends renew_token_invalidated so host
+        apps can prompt the user to update their payment method.
+        """
+        try:
+            recurring_plan = self.order.user.userplan.recurring
+        except ObjectDoesNotExist:
+            return
+        recurring_plan.token_verified = False
+        recurring_plan.save()
+        renew_token_invalidated.send(
+            sender=self.__class__, payment=self, recurring_user_plan=recurring_plan
+        )
 
     def get_renew_data(self):
         """
