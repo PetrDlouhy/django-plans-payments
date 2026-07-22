@@ -3,6 +3,15 @@
 History
 -------
 
+Unreleased
+++++++++++
+* add ``Payment.invalidate_renew_token()`` - payment providers call it when
+  the gateway reports the stored recurring token as permanently dead (e.g.
+  PayU ``INVALID_TOKEN``). The token is marked unverified so renewal tasks
+  stop selecting the account and ``get_renew_token()`` returns ``None``;
+  the new ``plans_payments.signals.renew_token_invalidated`` signal lets
+  host apps prompt the user to update their payment method.
+
 2.1.0 (2026-07-21)
 ++++++++++++++++++
 
