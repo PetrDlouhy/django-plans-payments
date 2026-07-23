@@ -13,8 +13,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="payment",
             name="billing_phone",
-            field=phonenumber_field.modelfields.PhoneNumberField(
-                blank=True, max_length=128, region=None
-            ),
+            field=phonenumber_field.modelfields.PhoneNumberField(blank=True, max_length=128, region=None),
         ),
     ]

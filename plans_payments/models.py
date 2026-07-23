@@ -63,15 +63,11 @@ class Payment(BasePayment):
                         if len(related_resources) == 1:
                             sale = related_resources[0]["sale"]
                             if "transaction_fee" in sale:
-                                self.transaction_fee = Decimal(
-                                    sale["transaction_fee"]["value"]
-                                )
+                                self.transaction_fee = Decimal(sale["transaction_fee"]["value"])
                             else:
                                 transaction_fee_missing = True
                 if transaction_fee_missing:
-                    logger.warning(
-                        "Payment fee not included", extra={"extra_data": extra_data}
-                    )
+                    logger.warning("Payment fee not included", extra={"extra_data": extra_data})
         ret_val = super().save(**kwargs)
         return ret_val
 
@@ -101,10 +97,7 @@ class Payment(BasePayment):
         """
         try:
             recurring_plan = self.order.user.userplan.recurring
-            if (
-                recurring_plan.token_verified
-                and self.variant == recurring_plan.payment_provider
-            ):
+            if recurring_plan.token_verified and self.variant == recurring_plan.payment_provider:
                 return recurring_plan.token
         except ObjectDoesNotExist:
             pass
@@ -126,9 +119,7 @@ class Payment(BasePayment):
             return
         recurring_plan.token_verified = False
         recurring_plan.save()
-        renew_token_invalidated.send(
-            sender=self.__class__, payment=self, recurring_user_plan=recurring_plan
-        )
+        renew_token_invalidated.send(sender=self.__class__, payment=self, recurring_user_plan=recurring_plan)
 
     def get_renew_data(self):
         """
@@ -147,10 +138,7 @@ class Payment(BasePayment):
         """
         try:
             recurring_plan = self.order.user.userplan.recurring
-            if not (
-                recurring_plan.token_verified
-                and self.variant == recurring_plan.payment_provider
-            ):
+            if not (recurring_plan.token_verified and self.variant == recurring_plan.payment_provider):
                 return None
 
             data = {"token": recurring_plan.token}
@@ -159,9 +147,7 @@ class Payment(BasePayment):
             # This allows any provider to store additional data (e.g., customer_id for Stripe)
             if hasattr(recurring_plan, "extra_data"):
                 if not isinstance(recurring_plan.extra_data, dict):
-                    raise ValueError(
-                        f"extra_data must be dict, got {type(recurring_plan.extra_data)}"
-                    )
+                    raise ValueError(f"extra_data must be dict, got {type(recurring_plan.extra_data)}")
                 # Merge all extra_data into the result (provider-agnostic)
                 data.update(recurring_plan.extra_data)
 
@@ -229,9 +215,7 @@ class Payment(BasePayment):
         if hasattr(self.order.user.userplan.recurring, "extra_data"):
             recurring_plan = self.order.user.userplan.recurring
             if not isinstance(recurring_plan.extra_data, dict):
-                raise ValueError(
-                    f"extra_data must be dict, got {type(recurring_plan.extra_data)}"
-                )
+                raise ValueError(f"extra_data must be dict, got {type(recurring_plan.extra_data)}")
             # Store any provider-specific kwargs in extra_data (excluding already processed ones)
             processed_keys = {"automatic_renewal", "renewal_triggered_by"}
             for key, value in kwargs.items():
@@ -254,9 +238,7 @@ def change_payment_status(sender, *args, **kwargs):
         getattr(settings, "PLANS_PAYMENTS_RETURN_ORDER_WHEN_PAYMENT_REFUNDED", False)
         and payment.status == PaymentStatus.REFUNDED
     ):
-        order._change_reason = (
-            f"Django-plans-payments: Payment status changed to {payment.status}"
-        )
+        order._change_reason = f"Django-plans-payments: Payment status changed to {payment.status}"
         order.return_order()
     elif order.status != Order.STATUS.COMPLETED and payment.status not in (
         PaymentStatus.CONFIRMED,
@@ -265,9 +247,7 @@ def change_payment_status(sender, *args, **kwargs):
     ):
         order.status = Order.STATUS.CANCELED
         # In case django-simples-history is installed
-        order._change_reason = (
-            f"Django-plans-payments: Payment status changed to {payment.status}"
-        )
+        order._change_reason = f"Django-plans-payments: Payment status changed to {payment.status}"
         order.save()
         # Maybe we would like to re-enable this for payments statuses that will not be ever renewed
         # (like "SAC - Account closed (do not try again)" on PayU)
@@ -281,14 +261,11 @@ def renew_accounts(sender, user, *args, **kwargs):
     userplan = user.userplan
     if (
         userplan.recurring.payment_provider in settings.PAYMENT_VARIANTS
-        and userplan.recurring.renewal_triggered_by
-        == AbstractRecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK
+        and userplan.recurring.renewal_triggered_by == AbstractRecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK
     ):
         order = userplan.recurring.create_renew_order()
 
-        payment = create_payment_object(
-            userplan.recurring.payment_provider, order, autorenewed_payment=True
-        )
+        payment = create_payment_object(userplan.recurring.payment_provider, order, autorenewed_payment=True)
 
         try:
             payment.autocomplete_with_wallet()

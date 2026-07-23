@@ -107,9 +107,7 @@ class TestPlansPayments(TestCase):
                 ),
             },
         }
-        p = models.Payment(
-            variant="paypal", total=Decimal("10.00"), extra_data=json.dumps(extra_data)
-        )
+        p = models.Payment(variant="paypal", total=Decimal("10.00"), extra_data=json.dumps(extra_data))
         p.save()
         p.save()
         rp = models.Payment.objects.get()
@@ -170,12 +168,8 @@ class TestPlansPayments(TestCase):
         with self.assertLogs(logger="plans_payments.models", level="WARNING") as logs:
             p.save()
 
-        self.assertIn(
-            "WARNING:plans_payments.models:Payment fee not included", logs.output
-        )
-        self.assertFalse(
-            models.Payment.objects.values_list("transaction_fee", flat=True).get()
-        )
+        self.assertIn("WARNING:plans_payments.models:Payment fee not included", logs.output)
+        self.assertFalse(models.Payment.objects.values_list("transaction_fee", flat=True).get())
 
     def tearDown(self):
         pass
@@ -503,18 +497,14 @@ class TestPlansPayments(TestCase):
         baker.make("BillingInfo", user=p.order.user)
         baker.make("RecurringUserPlan", user_plan=userplan)
         models.change_payment_status("sender", instance=p)
-        self.assertEqual(
-            p.order.completed, datetime(2018, 1, 1, 0, 0, tzinfo=timezone.utc)
-        )
+        self.assertEqual(p.order.completed, datetime(2018, 1, 1, 0, 0, tzinfo=timezone.utc))
 
         # Switch order back to new to simulate concurrent double submit
         p.status = PaymentStatus.REJECTED
 
         with freeze_time("2018-01-02"):
             models.change_payment_status("sender", instance=p)
-        self.assertEqual(
-            p.order.completed, datetime(2018, 1, 1, 0, 0, tzinfo=timezone.utc)
-        )
+        self.assertEqual(p.order.completed, datetime(2018, 1, 1, 0, 0, tzinfo=timezone.utc))
         # Only one Invoice was created
         self.assertEqual(Invoice.objects.count(), 1)
 
@@ -524,9 +514,7 @@ class TestPlansPayments(TestCase):
             status=PaymentStatus.REJECTED,
         )
         userplan = baker.make("UserPlan", user=p.order.user)
-        recurring_user_plan = baker.make(
-            "RecurringUserPlan", user_plan=userplan, token_verified=True
-        )
+        recurring_user_plan = baker.make("RecurringUserPlan", user_plan=userplan, token_verified=True)
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "rejected")
         self.assertEqual(p.order.status, Order.STATUS.CANCELED)
@@ -550,9 +538,7 @@ class TestPlansPayments(TestCase):
             status=PaymentStatus.REJECTED,
         )
         userplan = baker.make("UserPlan", user=p.order.user)
-        recurring_user_plan = baker.make(
-            "RecurringUserPlan", user_plan=userplan, token_verified=True
-        )
+        recurring_user_plan = baker.make("RecurringUserPlan", user_plan=userplan, token_verified=True)
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "rejected")
         self.assertEqual(p.order.status, Order.STATUS.CANCELED)
@@ -566,9 +552,7 @@ class TestPlansPayments(TestCase):
             status=PaymentStatus.ERROR,
         )
         userplan = baker.make("UserPlan", user=p.order.user)
-        recurring_user_plan = baker.make(
-            "RecurringUserPlan", user_plan=userplan, token_verified=True
-        )
+        recurring_user_plan = baker.make("RecurringUserPlan", user_plan=userplan, token_verified=True)
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "error")
         self.assertEqual(p.order.status, Order.STATUS.CANCELED)
@@ -582,9 +566,7 @@ class TestPlansPayments(TestCase):
             status=PaymentStatus.REJECTED,
         )
         userplan = baker.make("UserPlan", user=p.order.user)
-        recurring_user_plan = baker.make(
-            "RecurringUserPlan", user_plan=userplan, token_verified=False
-        )
+        recurring_user_plan = baker.make("RecurringUserPlan", user_plan=userplan, token_verified=False)
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "rejected")
         self.assertEqual(p.order.status, Order.STATUS.CANCELED)
@@ -792,9 +774,7 @@ class TestPlansPayments(TestCase):
             mock_payment.autocomplete_with_wallet = MagicMock()
             mock_payment.status = PaymentStatus.CONFIRMED
             # Mock get_renew_data to verify it's used by autocomplete_with_wallet
-            mock_payment.get_renew_data = MagicMock(
-                return_value={"token": "test_token", "customer_id": "cus_123"}
-            )
+            mock_payment.get_renew_data = MagicMock(return_value={"token": "test_token", "customer_id": "cus_123"})
             mock_create.return_value = mock_payment
 
             models.renew_accounts("sender", user, p)
@@ -838,9 +818,7 @@ class TestPlansPayments(TestCase):
             mock_payment = MagicMock()
             mock_payment.order = baker.make("Order", user=user, amount=Decimal(14))
             mock_payment.autorenewed_payment = False
-            mock_payment.autocomplete_with_wallet = MagicMock(
-                side_effect=RedirectNeeded("https://example.com/3ds")
-            )
+            mock_payment.autocomplete_with_wallet = MagicMock(side_effect=RedirectNeeded("https://example.com/3ds"))
             mock_create.return_value = mock_payment
 
             # Should not raise, should handle RedirectNeeded gracefully
@@ -905,9 +883,7 @@ class RenewDataTests(TestCase):
 
     def test_get_renew_data_merges_extra_data(self):
         payment = self._payment_with_recurring()
-        with mock.patch.object(
-            RecurringUserPlan, "extra_data", {"customer_id": "cus_456"}, create=True
-        ):
+        with mock.patch.object(RecurringUserPlan, "extra_data", {"customer_id": "cus_456"}, create=True):
             self.assertEqual(
                 payment.get_renew_data(),
                 {"token": "tok_123", "customer_id": "cus_456"},
@@ -915,18 +891,16 @@ class RenewDataTests(TestCase):
 
     def test_get_renew_data_rejects_non_dict_extra_data(self):
         payment = self._payment_with_recurring()
-        with mock.patch.object(
-            RecurringUserPlan, "extra_data", "not-a-dict", create=True
-        ):
+        with mock.patch.object(RecurringUserPlan, "extra_data", "not-a-dict", create=True):
             with self.assertRaises(ValueError):
                 payment.get_renew_data()
 
     def test_set_renew_token_stores_provider_kwargs_in_extra_data(self):
         payment = self._payment_with_recurring()
         extra = {}
-        with mock.patch.object(
-            RecurringUserPlan, "extra_data", extra, create=True
-        ), mock.patch.object(RecurringUserPlan, "save") as mock_save:
+        with mock.patch.object(RecurringUserPlan, "extra_data", extra, create=True), mock.patch.object(
+            RecurringUserPlan, "save"
+        ) as mock_save:
             payment.set_renew_token(
                 "tok_new",
                 customer_id="cus_789",
@@ -938,9 +912,9 @@ class RenewDataTests(TestCase):
     def test_set_renew_token_excludes_processed_kwargs_from_extra_data(self):
         payment = self._payment_with_recurring()
         extra = {}
-        with mock.patch.object(
-            RecurringUserPlan, "extra_data", extra, create=True
-        ), mock.patch.object(RecurringUserPlan, "save"):
+        with mock.patch.object(RecurringUserPlan, "extra_data", extra, create=True), mock.patch.object(
+            RecurringUserPlan, "save"
+        ):
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", DeprecationWarning)
                 payment.set_renew_token("tok_new", automatic_renewal=True)

@@ -2,7 +2,6 @@
 
 from decimal import Decimal
 
-import phonenumber_field.modelfields
 from django.db import migrations, models
 
 
@@ -20,8 +19,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name="payment",
             name="transaction_fee",
-            field=models.DecimalField(
-                decimal_places=2, default=Decimal("0.0"), max_digits=9
-            ),
+            field=models.DecimalField(decimal_places=2, default=Decimal("0.0"), max_digits=9),
         ),
     ]

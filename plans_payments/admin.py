@@ -18,9 +18,7 @@ class FaultyPaymentsFilter(SimpleListFilter):
 
     def queryset(self, request, queryset):
         if self.value() == "unconfirmed_order":
-            return queryset.filter(status=PaymentStatus.CONFIRMED).exclude(
-                order__status=Order.STATUS.COMPLETED
-            )
+            return queryset.filter(status=PaymentStatus.CONFIRMED).exclude(order__status=Order.STATUS.COMPLETED)
         return queryset
 
 
