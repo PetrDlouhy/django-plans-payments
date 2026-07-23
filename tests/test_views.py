@@ -16,21 +16,14 @@ class PaymentDetailsViewTests(TestCase):
 
     def test_payment_details_view_get(self):
         user = baker.make("User")
-        payment = baker.make(
-            Payment, order__user=user, variant="default", billing_email="bar@baz.cz"
-        )
+        payment = baker.make(Payment, order__user=user, variant="default", billing_email="bar@baz.cz")
         self.client.force_login(user)
-        response = self.client.get(
-            reverse("payment_details", kwargs={"payment_id": payment.id})
-        )
+        response = self.client.get(reverse("payment_details", kwargs={"payment_id": payment.id}))
         self.assertEqual(response.status_code, 200)
         # Build the expected options from PaymentStatus.CHOICES so the test
         # keeps passing across django-payments versions (e.g. the addition
         # of the "cancelled" status).
-        status_options = "".join(
-            f'<option value="{value}">{label}</option>'
-            for value, label in PaymentStatus.CHOICES
-        )
+        status_options = "".join(f'<option value="{value}">{label}</option>' for value, label in PaymentStatus.CHOICES)
         self.assertContains(
             response,
             f'<select name="status" id="id_status">{status_options}</select>',
@@ -39,13 +32,9 @@ class PaymentDetailsViewTests(TestCase):
 
     def test_payment_details_view_get_different_user(self):
         user = baker.make("User")
-        payment = baker.make(
-            Payment, order__user=user, variant="default", billing_email="bar@baz.cz"
-        )
+        payment = baker.make(Payment, order__user=user, variant="default", billing_email="bar@baz.cz")
         self.client.force_login(baker.make("User"))
-        response = self.client.get(
-            reverse("payment_details", kwargs={"payment_id": payment.id})
-        )
+        response = self.client.get(reverse("payment_details", kwargs={"payment_id": payment.id}))
         self.assertEqual(response.status_code, 404)
 
 
@@ -59,9 +48,7 @@ class CreatePaymentViewTests(TestCase):
                 kwargs={"order_id": order.id, "payment_variant": "default"},
             )
         )
-        self.assertRedirects(
-            response, f"/login/?next=/create_payment/default/{order.id}/"
-        )
+        self.assertRedirects(response, f"/login/?next=/create_payment/default/{order.id}/")
 
     def test_create_payment_view_get(self):
         user = baker.make("User")
@@ -75,9 +62,7 @@ class CreatePaymentViewTests(TestCase):
                 kwargs={"order_id": order.id, "payment_variant": "default"},
             )
         )
-        self.assertRedirects(
-            response, reverse("payment_details", kwargs={"payment_id": 1})
-        )
+        self.assertRedirects(response, reverse("payment_details", kwargs={"payment_id": 1}))
         payment = Payment.objects.get(order=order)
         self.assertEqual(payment.status, "input")
         self.assertEqual(payment.variant, "default")
@@ -100,19 +85,11 @@ class PaymentDetailViewRedirectTests(TestCase):
     def test_payment_details_view_redirect_needed(self):
         """3-D Secure / CVV flow: get_form raising RedirectNeeded redirects."""
         user = baker.make("User")
-        payment = baker.make(
-            Payment, order__user=user, variant="default", billing_email="bar@baz.cz"
-        )
+        payment = baker.make(Payment, order__user=user, variant="default", billing_email="bar@baz.cz")
         self.client.force_login(user)
-        with mock.patch.object(
-            Payment, "get_form", side_effect=RedirectNeeded("https://3ds.example.com")
-        ):
-            response = self.client.get(
-                reverse("payment_details", kwargs={"payment_id": payment.id})
-            )
-        self.assertRedirects(
-            response, "https://3ds.example.com", fetch_redirect_response=False
-        )
+        with mock.patch.object(Payment, "get_form", side_effect=RedirectNeeded("https://3ds.example.com")):
+            response = self.client.get(reverse("payment_details", kwargs={"payment_id": payment.id}))
+        self.assertRedirects(response, "https://3ds.example.com", fetch_redirect_response=False)
 
 
 class CreatePaymentObjectTests(TestCase):
