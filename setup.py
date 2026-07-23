@@ -47,8 +47,16 @@ history = open("HISTORY.rst").read().replace(".. :changelog:", "")
 
 def get_requirements(file_path):
     """Reads requirements from a file."""
+    requirements = []
     with open(file_path) as f:
-        return [line.strip() for line in f if line.strip() and not line.startswith("#")]
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                # Skip git URLs as they're not valid in install_requires
+                # These should be handled separately in CI/environment setup
+                if not line.startswith("git+"):
+                    requirements.append(line)
+    return requirements
 
 
 setup(

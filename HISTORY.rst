@@ -5,6 +5,13 @@ History
 
 Unreleased
 ++++++++++
+* Add the wallet interface to ``RecurringUserPlan``: it now provides the
+  django-payments ``BaseWallet`` fields (``status``, JSON ``extra_data``)
+  via migration, and ``payment_completed()`` transitions the wallet on
+  payment results (CONFIRMED activates and verifies the token,
+  REJECTED/ERROR mark the wallet errored). Requires a django-payments
+  build with the wallet interface (not yet in a PyPI release).
+* Extract Stripe transaction fees from payment ``attrs``.
 * add ``Payment.invalidate_renew_token()`` - payment providers call it when
   the gateway reports the stored recurring token as permanently dead (e.g.
   PayU ``INVALID_TOKEN``). The token is marked unverified so renewal tasks

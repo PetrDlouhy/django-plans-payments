@@ -1,3 +1,4 @@
-django-payments
-django-plans
+git+https://github.com/PetrDlouhy/django-payments.git@master
+django-plans>=2.1.0
 django-related-admin
+swapper

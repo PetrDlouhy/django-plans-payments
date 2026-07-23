@@ -121,7 +121,7 @@ class CreatePaymentObjectTests(TestCase):
         user = baker.make("User")
         userplan = baker.make("UserPlan", user=user)
         baker.make(
-            "RecurringUserPlan",
+            "plans_payments.RecurringUserPlan",
             user_plan=userplan,
             payment_provider="other-variant",
         )

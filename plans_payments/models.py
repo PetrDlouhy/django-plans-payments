@@ -8,18 +8,69 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 from django.dispatch.dispatcher import receiver
 from django.urls import reverse
-from payments import PaymentStatus, PurchasedItem, RedirectNeeded
-from payments.models import BasePayment
+from payments import PaymentStatus, PurchasedItem, RedirectNeeded, WalletStatus
+from payments.models import BasePayment, BaseWallet
 from payments.signals import status_changed
 from plans.base.models import AbstractRecurringUserPlan
 from plans.contrib import get_user_language, send_template_email
 from plans.models import Order
 from plans.signals import account_automatic_renewal
+from swapper import swappable_setting
 
 from .signals import renew_token_invalidated
 from .views import create_payment_object
 
 logger = logging.getLogger(__name__)
+
+
+class RecurringUserPlan(AbstractRecurringUserPlan, BaseWallet):
+    """
+    RecurringUserPlan that inherits from BaseWallet.
+
+    Bridges django-plans (subscription) with django-payments (payment processing)
+    by implementing both interfaces in the connector layer.
+
+    Provides:
+    - token (from both parents - same field, perfect!)
+    - status (from BaseWallet)
+    - extra_data (from BaseWallet) - stores customer_id, etc.
+    - All subscription fields (from AbstractRecurringUserPlan)
+    """
+
+    # Override ForeignKeys to use fully qualified references to resolve in plans app
+    user_plan: models.OneToOneField = models.OneToOneField(
+        "plans.UserPlan", on_delete=models.CASCADE, related_name="recurring"
+    )
+    pricing: models.ForeignKey = models.ForeignKey(
+        "plans.Pricing",
+        help_text="Recurring pricing",
+        default=None,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+    )
+
+    class Meta(AbstractRecurringUserPlan.Meta):
+        abstract = False
+        app_label = "plans_payments"
+        # The swappable system will handle model registration
+        swappable = swappable_setting("plans", "RecurringUserPlan")
+        # When model is swapped, use the existing table name from plans app
+        # This handles the case where django-plans migrations already created the table
+        db_table = "plans_recurringuserplan"
+
+    def payment_completed(self, payment):
+        """Called after wallet payment attempt.
+
+        A CONFIRMED payment activates the wallet and marks the token
+        verified. Failed payments leave the wallet untouched - a transient
+        decline must not disarm automatic renewals; permanently dead tokens
+        are handled by Payment.invalidate_renew_token() instead.
+        """
+        if payment.status == PaymentStatus.CONFIRMED:
+            self.status = WalletStatus.ACTIVE
+            self.token_verified = True
+            self.save(update_fields=["status", "token_verified"])
 
 
 class Payment(BasePayment):
@@ -49,6 +100,13 @@ class Payment(BasePayment):
             # TODO: base this on actual payment methods and currency fees on PayU
             # or even better on real PayU info
             self.transaction_fee = self.total * Decimal("0.029") + Decimal("0.05")
+        elif "stripe" in self.variant:
+            # Extract Stripe fee from attrs (set by django-payments StripeProviderV3)
+            if hasattr(self, "attrs") and hasattr(self.attrs, "stripe_fee"):
+                stripe_fee = self.attrs.stripe_fee
+                if stripe_fee is not None:
+                    # Stripe fee is in cents, convert to currency units
+                    self.transaction_fee = Decimal(stripe_fee) / Decimal("100")
         elif hasattr(self, "extra_data") and self.extra_data:
             extra_data = json.loads(self.extra_data)
             if "response" in extra_data:
@@ -125,6 +183,7 @@ class Payment(BasePayment):
         except ObjectDoesNotExist:
             return
         recurring_plan.token_verified = False
+        recurring_plan.status = WalletStatus.ERASED
         recurring_plan.save()
         renew_token_invalidated.send(
             sender=self.__class__, payment=self, recurring_user_plan=recurring_plan
@@ -132,39 +191,27 @@ class Payment(BasePayment):
 
     def get_renew_data(self):
         """
-        Get all data needed for recurring payment charge.
+        Get token + extra_data from RecurringUserPlan (which IS a wallet).
 
         Returns dict with token and provider-specific data from extra_data.
-        Returns None if wallet is not verified or does not exist.
-
-        Example:
-            >>> payment.get_renew_data()
-            {'token': 'tok_123', 'customer_id': 'cus_456'}
-
-        Returns:
-            dict: Contains 'token' and any provider-specific keys from extra_data
-            None: If wallet is not verified or doesn't exist
         """
         try:
-            recurring_plan = self.order.user.userplan.recurring
+            recurring = self.order.user.userplan.recurring
             if not (
-                recurring_plan.token_verified
-                and self.variant == recurring_plan.payment_provider
+                recurring.token_verified
+                and recurring.status == WalletStatus.ACTIVE
+                and self.variant == recurring.payment_provider
             ):
                 return None
 
-            data = {"token": recurring_plan.token}
-
-            # Add provider-specific data from extra_data (if field exists)
-            # This allows any provider to store additional data (e.g., customer_id for Stripe)
-            if hasattr(recurring_plan, "extra_data"):
-                if not isinstance(recurring_plan.extra_data, dict):
+            data = {"token": recurring.token}
+            # Add provider-specific data from extra_data (e.g., customer_id for Stripe)
+            if recurring.extra_data:
+                if not isinstance(recurring.extra_data, dict):
                     raise ValueError(
-                        f"extra_data must be dict, got {type(recurring_plan.extra_data)}"
+                        f"extra_data must be dict, got {type(recurring.extra_data)}"
                     )
-                # Merge all extra_data into the result (provider-agnostic)
-                data.update(recurring_plan.extra_data)
-
+                data.update(recurring.extra_data)
             return data
 
         except ObjectDoesNotExist:
@@ -214,7 +261,12 @@ class Payment(BasePayment):
         else:
             raise ValueError(f"Invalid renewal_triggered_by: {renewal_triggered_by}")
 
-        self.order.user.userplan.set_plan_renewal(
+        # set_plan_renewal creates or updates the RecurringUserPlan: it
+        # resets the subscription fields ("don't mix old and new values"),
+        # applies the new ones, saves, and returns the instance. Doing the
+        # wallet-field updates on the instance it returns avoids clobbering
+        # them with a stale full-row save.
+        recurring = self.order.user.userplan.set_plan_renewal(
             order=self.order,
             token=token,
             payment_provider=self.variant,
@@ -224,21 +276,16 @@ class Payment(BasePayment):
             renewal_triggered_by=renewal_triggered_by,
         )
 
-        # Store provider-specific data in RecurringUserPlan.extra_data (if field exists)
-        # This allows any provider to store additional data via kwargs (e.g., customer_id for Stripe)
-        if hasattr(self.order.user.userplan.recurring, "extra_data"):
-            recurring_plan = self.order.user.userplan.recurring
-            if not isinstance(recurring_plan.extra_data, dict):
-                raise ValueError(
-                    f"extra_data must be dict, got {type(recurring_plan.extra_data)}"
-                )
-            # Store any provider-specific kwargs in extra_data (excluding already processed ones)
-            processed_keys = {"automatic_renewal", "renewal_triggered_by"}
-            for key, value in kwargs.items():
-                if key not in processed_keys:
-                    recurring_plan.extra_data[key] = value
-            if recurring_plan.extra_data:
-                recurring_plan.save(update_fields=["extra_data"])
+        # Wallet fields: a fresh token starts unproven - payment_completed()
+        # activates the wallet on the first CONFIRMED payment. extra_data is
+        # reset to the provider-specific kwargs (e.g. Stripe customer_id),
+        # matching the reset semantics of set_plan_renewal.
+        processed_keys = {"automatic_renewal", "renewal_triggered_by"}
+        recurring.status = WalletStatus.PENDING
+        recurring.extra_data = {
+            key: value for key, value in kwargs.items() if key not in processed_keys
+        }
+        recurring.save(update_fields=["status", "extra_data"])
 
 
 @receiver(status_changed, sender=Payment)
@@ -247,8 +294,8 @@ def change_payment_status(sender, *args, **kwargs):
     order = payment.order
     if payment.status == PaymentStatus.CONFIRMED:
         if hasattr(order.user.userplan, "recurring"):
-            order.user.userplan.recurring.token_verified = True
-            order.user.userplan.recurring.save()
+            # RecurringUserPlan IS a wallet, so use payment_completed method
+            order.user.userplan.recurring.payment_completed(payment)
         order.complete_order()
     if (
         getattr(settings, "PLANS_PAYMENTS_RETURN_ORDER_WHEN_PAYMENT_REFUNDED", False)
