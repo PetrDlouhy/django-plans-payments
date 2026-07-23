@@ -11,6 +11,7 @@ mypy
 django-stubs
 psycopg2-binary
 model_bakery
+pre-commit
 
 
 # Additional test requirements go here
