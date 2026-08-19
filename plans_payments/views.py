@@ -46,6 +46,10 @@ def create_payment_object(payment_variant, order, request=None, autorenewed_paym
     Payment = get_payment_model()
     if hasattr(order.user.userplan, "recurring") and order.user.userplan.recurring.payment_provider != payment_variant:
         order.user.userplan.recurring.delete()
+    # BillingInfo is an optional reverse one-to-one; a user can reach
+    # checkout without one, and the payment provider collects the address
+    # anyway -- so missing billing info must not crash payment creation.
+    billing_info = getattr(order.user, "billinginfo", None)
     return Payment.objects.create(
         variant=payment_variant,
         order=order,
@@ -57,12 +61,12 @@ def create_payment_object(payment_variant, order, request=None, autorenewed_paym
         billing_first_name=order.user.first_name,
         billing_last_name=order.user.last_name,
         billing_email=order.user.email or "",
-        billing_address_1=order.user.billinginfo.street,
-        # billing_address_2=order.user.billinginfo.zipcode,
-        billing_city=order.user.billinginfo.city,
-        billing_postcode=order.user.billinginfo.zipcode,
-        billing_country_code=order.user.billinginfo.country,
-        # billing_country_area=order.user.billinginfo.zipcode,
+        billing_address_1=billing_info.street if billing_info else "",
+        # billing_address_2=billing_info.zipcode if billing_info else "",
+        billing_city=billing_info.city if billing_info else "",
+        billing_postcode=billing_info.zipcode if billing_info else "",
+        billing_country_code=billing_info.country if billing_info else "",
+        # billing_country_area=billing_info.zipcode if billing_info else "",
         customer_ip_address=get_client_ip(request) if request else "127.0.0.1",
         autorenewed_payment=autorenewed_payment,
     )

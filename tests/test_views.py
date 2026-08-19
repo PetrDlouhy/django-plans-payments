@@ -215,6 +215,20 @@ class PaymentDetailViewRedirectTests(TestCase):
 
 
 class CreatePaymentObjectTests(TestCase):
+    def test_create_payment_object_without_billing_info(self):
+        # BillingInfo is an optional reverse one-to-one; a user reaching
+        # checkout without one must not crash payment creation.
+        user = baker.make("User")
+        baker.make("UserPlan", user=user)
+        order = baker.make("Order", user=user, amount=10, tax=0, currency="EUR")
+
+        payment = create_payment_object("default", order)
+
+        self.assertEqual(payment.billing_address_1, "")
+        self.assertEqual(payment.billing_city, "")
+        self.assertEqual(payment.billing_postcode, "")
+        self.assertEqual(payment.billing_country_code, "")
+
     def test_create_payment_object_deletes_foreign_recurring(self):
         """A recurring plan from another provider is dropped on new payment."""
         user = baker.make("User")
