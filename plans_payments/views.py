@@ -1,12 +1,27 @@
+import datetime
 from decimal import Decimal
 
+from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import get_object_or_404, redirect
 from django.template.response import TemplateResponse
 from django.urls import reverse, reverse_lazy
+from django.utils import timezone
+from django.utils.translation import gettext as _
 from django.views.generic import View
-from payments import RedirectNeeded, get_payment_model
+from payments import PaymentStatus, RedirectNeeded, get_payment_model
 from plans.models import Order
+
+# An attempt while another one is in flight (or just captured) joins it
+# instead of creating a twin payment.
+IN_FLIGHT_STATUSES = (
+    PaymentStatus.WAITING,
+    PaymentStatus.INPUT,
+    PaymentStatus.PREAUTH,
+    PaymentStatus.CONFIRMED,
+)
+DECLINED_STATUSES = (PaymentStatus.REJECTED, PaymentStatus.ERROR)
 
 
 class PaymentDetailView(LoginRequiredMixin, View):
@@ -54,9 +69,66 @@ def create_payment_object(payment_variant, order, request=None, autorenewed_paym
 
 
 class CreatePaymentView(LoginRequiredMixin, View):
+    """Create a charge attempt for an order -- idempotently.
+
+    Every GET used to create a fresh ``Payment``; users re-clicking through
+    a slow redirect or a decline produced bursts of live charge attempts
+    (duplicate captures at worst, bank anti-fraud blocks at best). Two
+    guards make the endpoint idempotent instead:
+
+    * an attempt while a previous one is in flight (or just succeeded)
+      joins it -- the user is redirected to the existing payment
+      (``PLANS_PAYMENTS_JOIN_IN_FLIGHT_SECONDS``, default 180; 0 disables);
+    * an attempt right after a decline waits out a cooldown, because banks
+      read rapid-fire retries as fraud
+      (``PLANS_PAYMENTS_DECLINE_COOLDOWN_SECONDS``, default 60; 0 disables).
+
+    Both windows look across all the user's orders: retry bursts typically
+    mint a new order per click.
+    """
+
     login_url = reverse_lazy("auth_login")
 
     def get(self, request, *args, order_id=None, payment_variant=None):
         order = get_object_or_404(Order, pk=order_id, user=request.user)
+        Payment = get_payment_model()
+        now = timezone.now()
+
+        join_window = getattr(settings, "PLANS_PAYMENTS_JOIN_IN_FLIGHT_SECONDS", 180)
+        if join_window:
+            in_flight = (
+                Payment.objects.filter(
+                    order__user=request.user,
+                    status__in=IN_FLIGHT_STATUSES,
+                    created__gte=now - datetime.timedelta(seconds=join_window),
+                )
+                .order_by("-created")
+                .first()
+            )
+            if in_flight is not None:
+                messages.info(
+                    request,
+                    _("Your previous payment attempt is still being processed - continuing with it."),
+                )
+                return redirect(reverse("payment_details", kwargs={"payment_id": in_flight.id}))
+
+        decline_cooldown = getattr(settings, "PLANS_PAYMENTS_DECLINE_COOLDOWN_SECONDS", 60)
+        if decline_cooldown:
+            recently_declined = Payment.objects.filter(
+                order__user=request.user,
+                status__in=DECLINED_STATUSES,
+                created__gte=now - datetime.timedelta(seconds=decline_cooldown),
+            ).exists()
+            if recently_declined:
+                messages.warning(
+                    request,
+                    _(
+                        "Your previous charge attempt was declined a moment ago. "
+                        "Please wait a minute before trying again - rapid retries "
+                        "can make your bank block the card."
+                    ),
+                )
+                return redirect(reverse("order", kwargs={"pk": order.pk}))
+
         payment = create_payment_object(payment_variant, order, request)
         return redirect(reverse("payment_details", kwargs={"payment_id": payment.id}))

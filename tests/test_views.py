@@ -1,7 +1,9 @@
+from datetime import timedelta
 from unittest import mock
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 from model_bakery import baker
 from payments import PaymentStatus, RedirectNeeded
 
@@ -79,6 +81,126 @@ class CreatePaymentViewTests(TestCase):
             )
         )
         self.assertEqual(response.status_code, 404)
+
+
+class CreatePaymentIdempotencyGuardTests(TestCase):
+    """The charge-attempt endpoint must be idempotent, not a machine gun.
+
+    Users re-clicking through slow redirects and declines fire bursts of
+    live charge attempts minutes apart; the worst pairs both capture, the
+    rest trip the banks' anti-fraud. An attempt joins the one in flight,
+    and an attempt right after a decline waits out a short cooldown.
+    """
+
+    def setUp(self):
+        self.user = baker.make("User")
+        baker.make("UserPlan", user=self.user)
+        baker.make("BillingInfo", user=self.user)
+        self.client.force_login(self.user)
+
+    def _order(self):
+        return baker.make("Order", user=self.user)
+
+    def _create_payment_url(self, order):
+        return reverse("create_payment", kwargs={"order_id": order.id, "payment_variant": "default"})
+
+    def _existing_payment(self, order, status, age):
+        payment = baker.make(Payment, order=order, variant="default", billing_email="bar@baz.cz", status=status)
+        Payment.objects.filter(pk=payment.pk).update(created=timezone.now() - age)
+        return payment
+
+    def test_second_attempt_joins_the_payment_in_flight(self):
+        order = self._order()
+        in_flight = self._existing_payment(order, PaymentStatus.WAITING, age=timedelta(seconds=30))
+
+        response = self.client.get(self._create_payment_url(order))
+
+        self.assertEqual(Payment.objects.count(), 1)
+        self.assertRedirects(
+            response,
+            reverse("payment_details", kwargs={"payment_id": in_flight.id}),
+            fetch_redirect_response=False,
+        )
+
+    def test_attempt_on_a_new_order_joins_the_other_orders_payment_in_flight(self):
+        # The burst shape seen in production: every click minted a NEW
+        # order, so the guard must look across the user's orders.
+        in_flight = self._existing_payment(self._order(), PaymentStatus.WAITING, age=timedelta(seconds=30))
+
+        response = self.client.get(self._create_payment_url(self._order()))
+
+        self.assertEqual(Payment.objects.count(), 1)
+        self.assertRedirects(
+            response,
+            reverse("payment_details", kwargs={"payment_id": in_flight.id}),
+            fetch_redirect_response=False,
+        )
+
+    def test_attempt_right_after_a_decline_waits(self):
+        self._existing_payment(self._order(), PaymentStatus.REJECTED, age=timedelta(seconds=20))
+        second_order = self._order()
+
+        response = self.client.get(self._create_payment_url(second_order))
+
+        self.assertEqual(Payment.objects.count(), 1)
+        self.assertRedirects(
+            response,
+            reverse("order", kwargs={"pk": second_order.pk}),
+            fetch_redirect_response=False,
+        )
+
+    def test_considered_retry_after_a_decline_is_allowed(self):
+        first_order = self._order()
+        self._existing_payment(first_order, PaymentStatus.REJECTED, age=timedelta(minutes=2))
+
+        response = self.client.get(self._create_payment_url(self._order()))
+
+        self.assertEqual(Payment.objects.count(), 2)
+        new_payment = Payment.objects.exclude(order=first_order).get()
+        self.assertRedirects(
+            response,
+            reverse("payment_details", kwargs={"payment_id": new_payment.id}),
+            fetch_redirect_response=False,
+        )
+
+    def test_stale_in_flight_payment_does_not_block_forever(self):
+        # An abandoned WAITING payment older than the join window must not
+        # wall the user off from ever paying.
+        self._existing_payment(self._order(), PaymentStatus.WAITING, age=timedelta(minutes=10))
+
+        self.client.get(self._create_payment_url(self._order()))
+
+        self.assertEqual(Payment.objects.count(), 2)
+
+    def test_other_users_payments_do_not_interfere(self):
+        stranger = baker.make("User")
+        baker.make(
+            Payment,
+            order__user=stranger,
+            variant="default",
+            billing_email="bar@baz.cz",
+            status=PaymentStatus.WAITING,
+        )
+
+        self.client.get(self._create_payment_url(self._order()))
+
+        self.assertEqual(Payment.objects.filter(order__user=self.user).count(), 1)
+
+    @override_settings(PLANS_PAYMENTS_JOIN_IN_FLIGHT_SECONDS=0)
+    def test_join_guard_can_be_disabled(self):
+        self._existing_payment(self._order(), PaymentStatus.WAITING, age=timedelta(seconds=30))
+
+        self.client.get(self._create_payment_url(self._order()))
+
+        self.assertEqual(Payment.objects.count(), 2)
+
+    @override_settings(PLANS_PAYMENTS_DECLINE_COOLDOWN_SECONDS=0)
+    def test_decline_cooldown_can_be_disabled(self):
+        self._existing_payment(self._order(), PaymentStatus.REJECTED, age=timedelta(seconds=20))
+
+        self.client.get(self._create_payment_url(self._order()))
+
+        self.assertEqual(Payment.objects.count(), 2)
 
 
 class PaymentDetailViewRedirectTests(TestCase):
