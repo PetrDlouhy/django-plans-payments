@@ -259,6 +259,20 @@ def change_payment_status(sender, *args, **kwargs):
 @receiver(account_automatic_renewal)
 def renew_accounts(sender, user, *args, **kwargs):
     userplan = user.userplan
+    if userplan.plan.is_free():
+        # A plan without pricing has nothing to renew: charging would take
+        # the customer's money and extend nothing (complete_order() sets
+        # plan_extended_from/until to None on free plans). Reaching this
+        # means an armed RecurringUserPlan survived a switch to a free
+        # plan -- skip the charge and leave the stale row to inspection.
+        logger.warning(
+            "Skipping automatic renewal for user %s: plan %s is free but "
+            "RecurringUserPlan is still armed (provider=%s)",
+            user.pk,
+            userplan.plan_id,
+            userplan.recurring.payment_provider,
+        )
+        return
     if (
         userplan.recurring.payment_provider in settings.PAYMENT_VARIANTS
         and userplan.recurring.renewal_triggered_by == AbstractRecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK

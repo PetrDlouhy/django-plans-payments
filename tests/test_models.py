@@ -656,6 +656,9 @@ class TestPlansPayments(TestCase):
         p = models.Payment()
         user = baker.make("User")
         userplan = baker.make("UserPlan", user=user)
+        # A paid plan, so the free-plan renewal guard does not preempt
+        # the branch this test exercises.
+        baker.make("PlanPricing", plan=userplan.plan, price=12)
         baker.make(
             "RecurringUserPlan",
             user_plan=userplan,
@@ -704,6 +707,9 @@ class TestPlansPayments(TestCase):
         p = models.Payment(variant="default")
         user = baker.make("User")
         userplan = baker.make("UserPlan", user=user)
+        # A paid plan, so the free-plan renewal guard does not preempt
+        # the branch this test exercises.
+        baker.make("PlanPricing", plan=userplan.plan, price=12)
         baker.make(
             "RecurringUserPlan",
             user_plan=userplan,
@@ -722,6 +728,9 @@ class TestPlansPayments(TestCase):
         p = models.Payment(variant="default")
         user = baker.make("User")
         userplan = baker.make("UserPlan", user=user)
+        # A paid plan, so the free-plan renewal guard does not preempt
+        # the branch this test exercises.
+        baker.make("PlanPricing", plan=userplan.plan, price=12)
         baker.make(
             "RecurringUserPlan",
             user_plan=userplan,
@@ -735,6 +744,29 @@ class TestPlansPayments(TestCase):
         self.assertFalse(Order.objects.exists())
         self.assertFalse(models.Payment.objects.exclude(id=p.id).exists())
         self.assertFalse(caught_warnings)
+
+    def test_renew_accounts_skips_free_plan(self):
+        # An armed RecurringUserPlan surviving a switch to a free plan must
+        # not charge the customer: the plan has no pricing, so the charge
+        # would extend nothing (plan_extended_from/until become None).
+        p = baker.make("Payment", variant="default", order__amount=12)
+        user = baker.make("User")
+        userplan = baker.make("UserPlan", user=user)
+        baker.make(
+            "RecurringUserPlan",
+            user_plan=userplan,
+            payment_provider="default",
+            renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
+            amount=14,
+            token="test_token",
+            token_verified=True,
+        )
+        with self.assertLogs("plans_payments.models", level="WARNING") as logs:
+            models.renew_accounts("sender", user, p)
+        self.assertFalse(Order.objects.exclude(id=p.order.id).exists())
+        self.assertFalse(models.Payment.objects.exclude(id=p.id).exists())
+        self.assertIn("plan", logs.output[0])
+        self.assertIn("free", logs.output[0])
 
     def test_renew_accounts_calls_autocomplete_with_wallet(self):
         """Test that renew_accounts calls autocomplete_with_wallet which uses get_renew_data().
