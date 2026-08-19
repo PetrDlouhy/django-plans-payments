@@ -3,6 +3,22 @@
 History
 -------
 
+2.3.0 (2026-08-19)
+++++++++++++++++++
+* make ``CreatePaymentView`` idempotent: an attempt while a previous
+  payment is in flight joins it instead of creating a twin, and an
+  attempt right after a decline waits out a short cooldown (banks read
+  rapid-fire retries as fraud). Configurable via
+  ``PLANS_PAYMENTS_JOIN_IN_FLIGHT_SECONDS`` (default 180) and
+  ``PLANS_PAYMENTS_DECLINE_COOLDOWN_SECONDS`` (default 60); 0 disables.
+* fix ``create_payment_object`` crashing with ``BillingInfo.DoesNotExist``
+  for users without saved billing info -- billing fields fall back to
+  empty strings.
+* fix ``renew_accounts`` charging automatic renewals for free plans: an
+  armed ``RecurringUserPlan`` surviving a switch to a free plan took the
+  customer's money and extended nothing. The renewal is skipped with a
+  warning instead.
+
 2.2.0 (2026-07-23)
 ++++++++++++++++++
 * add ``Payment.invalidate_renew_token()`` - payment providers call it when

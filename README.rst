@@ -57,6 +57,21 @@ Set ``django-plans`` settings and set model to:
 
    PAYMENT_MODEL = 'plans_payments.Payment'
 
+Charge-attempt idempotency
+--------------------------
+
+``CreatePaymentView`` refuses to fire duplicate live charge attempts:
+a request while a previous payment is still in flight (or just captured)
+redirects to that payment instead of creating a twin, and a request
+right after a decline waits out a short cooldown, because banks read
+rapid-fire retries as fraud. Both windows look across all the user's
+orders and are configurable:
+
+.. code-block:: python
+
+   PLANS_PAYMENTS_JOIN_IN_FLIGHT_SECONDS = 180  # 0 disables joining
+   PLANS_PAYMENTS_DECLINE_COOLDOWN_SECONDS = 60  # 0 disables the cooldown
+
 Customer IP address
 -------------------
 
