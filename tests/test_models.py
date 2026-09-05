@@ -333,6 +333,51 @@ class TestPlansPayments(TestCase):
             self.assertEqual(userplan.recurring.extra_data["customer_id"], "cus_123")
             self.assertEqual(userplan.recurring.extra_data["other_field"], "value")
 
+    def test_set_renew_token_on_plan_change_order_keeps_subscription_terms(self):
+        """A plan-change order carries no pricing. Storing its token must not
+        re-arm the renewal from it - that left pricing=None and the one-off
+        difference as the amount, a subscription that renews nothing."""
+        user = baker.make("User")
+        userplan = baker.make("UserPlan", user=user)
+        pricing = baker.make("Pricing", period=30)
+        baker.make(
+            "RecurringUserPlan",
+            user_plan=userplan,
+            pricing=pricing,
+            amount=Decimal("10.00"),
+            tax=Decimal("20"),
+            currency="USD",
+            token="old-token",
+            payment_provider="default",
+            token_verified=True,
+            renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
+        )
+        change_order = baker.make(
+            "Order", user=user, pricing=None, amount=Decimal("7.00"), currency="EUR"
+        )
+        p = models.Payment(order=change_order, variant="payu-recurring")
+
+        p.set_renew_token(
+            "new-token",
+            card_expire_year=2030,
+            card_expire_month=1,
+            card_masked_number="9999",
+            renewal_triggered_by="task",
+        )
+
+        userplan.recurring.refresh_from_db()
+        self.assertEqual(userplan.recurring.pricing, pricing)
+        self.assertEqual(userplan.recurring.amount, Decimal("10.00"))
+        self.assertEqual(userplan.recurring.tax, Decimal("20"))
+        self.assertEqual(userplan.recurring.currency, "USD")
+        self.assertEqual(userplan.recurring.token, "new-token")
+        self.assertEqual(userplan.recurring.payment_provider, "payu-recurring")
+        self.assertEqual(userplan.recurring.card_masked_number, "9999")
+        self.assertEqual(
+            userplan.recurring.renewal_triggered_by,
+            RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
+        )
+
     def test_set_renew_token_task(self):
         user = baker.make("User")
         p = models.Payment(order=baker.make("Order", user=user))

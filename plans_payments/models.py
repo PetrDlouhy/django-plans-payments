@@ -200,15 +200,30 @@ class Payment(BasePayment):
         else:
             raise ValueError(f"Invalid renewal_triggered_by: {renewal_triggered_by}")
 
-        self.order.user.userplan.set_plan_renewal(
-            order=self.order,
-            token=token,
-            payment_provider=self.variant,
-            card_expire_year=card_expire_year,
-            card_expire_month=card_expire_month,
-            card_masked_number=card_masked_number,
-            renewal_triggered_by=renewal_triggered_by,
-        )
+        userplan = self.order.user.userplan
+        if self.order.pricing_id is None and hasattr(userplan, "recurring"):
+            # A plan-change order has no pricing: it changed the plan, not how
+            # the account renews. Re-arming from it would set pricing=None and
+            # the one-off difference as the renewal amount, so only the token
+            # side is stored; the subscription's own terms stay untouched.
+            recurring = userplan.recurring
+            recurring.token = token
+            recurring.payment_provider = self.variant
+            recurring.card_expire_year = card_expire_year
+            recurring.card_expire_month = card_expire_month
+            recurring.card_masked_number = card_masked_number
+            recurring.renewal_triggered_by = renewal_triggered_by
+            recurring.save()
+        else:
+            userplan.set_plan_renewal(
+                order=self.order,
+                token=token,
+                payment_provider=self.variant,
+                card_expire_year=card_expire_year,
+                card_expire_month=card_expire_month,
+                card_masked_number=card_masked_number,
+                renewal_triggered_by=renewal_triggered_by,
+            )
 
         # Store provider-specific data in RecurringUserPlan.extra_data (if field exists)
         # This allows any provider to store additional data via kwargs (e.g., customer_id for Stripe)
