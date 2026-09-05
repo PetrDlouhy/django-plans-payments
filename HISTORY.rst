@@ -3,6 +3,13 @@
 History
 -------
 
+Unreleased
+++++++++++
+* ``Payment.set_renew_token`` on a plan-change order (an order without a
+  pricing) stores only the token-related values on the existing
+  ``RecurringUserPlan`` instead of re-arming it from the order, which left
+  the renewal with ``pricing=None`` and the one-off difference as its amount.
+
 2.3.0 (2026-08-19)
 ++++++++++++++++++
 * make ``CreatePaymentView`` idempotent: an attempt while a previous
