@@ -352,9 +352,7 @@ class TestPlansPayments(TestCase):
             token_verified=True,
             renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
         )
-        change_order = baker.make(
-            "Order", user=user, pricing=None, amount=Decimal("7.00"), currency="EUR"
-        )
+        change_order = baker.make("Order", user=user, pricing=None, amount=Decimal("7.00"), currency="EUR")
         p = models.Payment(order=change_order, variant="payu-recurring")
 
         p.set_renew_token(
