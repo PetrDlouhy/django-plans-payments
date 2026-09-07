@@ -727,6 +727,7 @@ class TestPlansPayments(TestCase):
             payment_provider="default",
             renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
             amount=14,
+            currency="USD",
             pricing=plan_pricing.pricing,
             token="test_token",
             token_verified=True,
@@ -740,6 +741,7 @@ class TestPlansPayments(TestCase):
         self.assertEqual(order_renewed.plan, plan_pricing.plan)
         self.assertEqual(order_renewed.pricing, plan_pricing.pricing)
         self.assertEqual(order_renewed.amount, Decimal(14))
+        self.assertEqual(order_renewed.currency, "USD")
         self.assertEqual(order_renewed.user, user)
         self.assertEqual(payment_renewed.order, order_renewed)
         self.assertEqual(payment_renewed.variant, "default")
@@ -831,6 +833,7 @@ class TestPlansPayments(TestCase):
             payment_provider="default",
             renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
             amount=14,
+            currency="USD",
             pricing=plan_pricing.pricing,
             token="test_token",
             token_verified=True,
@@ -882,6 +885,7 @@ class TestPlansPayments(TestCase):
             payment_provider="default",
             renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
             amount=14,
+            currency="USD",
             pricing=plan_pricing.pricing,
             token="test_token",
             token_verified=True,
