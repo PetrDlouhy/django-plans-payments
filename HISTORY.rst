@@ -3,8 +3,8 @@
 History
 -------
 
-Unreleased
-++++++++++
+2.3.1 (2026-09-07)
+++++++++++++++++++
 * ``Payment.set_renew_token`` on a plan-change order (an order without a
   pricing) stores only the token-related values on the existing
   ``RecurringUserPlan`` instead of re-arming it from the order, which left
