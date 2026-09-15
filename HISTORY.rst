@@ -3,7 +3,7 @@
 History
 -------
 
-2.3.2 (unreleased)
+2.3.2 (2026-09-15)
 ++++++++++++++++++
 * ``CreatePaymentView``'s in-flight join and decline cooldown consider only
   payments of the requested variant. A checkout page that pre-creates a card
