@@ -88,7 +88,10 @@ class CreatePaymentView(LoginRequiredMixin, View):
       (``PLANS_PAYMENTS_DECLINE_COOLDOWN_SECONDS``, default 60; 0 disables).
 
     Both windows look across all the user's orders: retry bursts typically
-    mint a new order per click.
+    mint a new order per click. Both look only at attempts with the same
+    payment variant: a checkout page that pre-creates a card payment for an
+    embedded widget must not capture a click on "Pay with PayPal", and a
+    buyer whose card was just declined may switch to another method at once.
     """
 
     login_url = reverse_lazy("auth_login")
@@ -103,6 +106,7 @@ class CreatePaymentView(LoginRequiredMixin, View):
             in_flight = (
                 Payment.objects.filter(
                     order__user=request.user,
+                    variant=payment_variant,
                     status__in=IN_FLIGHT_STATUSES,
                     created__gte=now - datetime.timedelta(seconds=join_window),
                 )
@@ -120,6 +124,7 @@ class CreatePaymentView(LoginRequiredMixin, View):
         if decline_cooldown:
             recently_declined = Payment.objects.filter(
                 order__user=request.user,
+                variant=payment_variant,
                 status__in=DECLINED_STATUSES,
                 created__gte=now - datetime.timedelta(seconds=decline_cooldown),
             ).exists()

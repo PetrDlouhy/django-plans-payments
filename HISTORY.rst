@@ -3,6 +3,15 @@
 History
 -------
 
+2.3.2 (unreleased)
+++++++++++++++++++
+* ``CreatePaymentView``'s in-flight join and decline cooldown consider only
+  payments of the requested variant. A checkout page that pre-creates a card
+  payment for an embedded widget on page load no longer captures a click on
+  another method (every "Pay with PayPal" click within the join window was
+  redirected to the card payment), and a buyer whose card was just declined
+  can switch to another method without waiting out the cooldown.
+
 2.3.1 (2026-09-07)
 ++++++++++++++++++
 * ``Payment.set_renew_token`` on a plan-change order (an order without a
