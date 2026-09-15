@@ -186,6 +186,39 @@ class CreatePaymentIdempotencyGuardTests(TestCase):
 
         self.assertEqual(Payment.objects.filter(order__user=self.user).count(), 1)
 
+    def test_in_flight_payment_of_another_variant_is_not_joined(self):
+        # A checkout page with an embedded card widget pre-creates a WAITING
+        # card payment on every page load. Clicking "Pay with PayPal" seconds
+        # later must reach PayPal, not be captured by that card payment.
+        widget_payment = self._existing_payment(self._order(), PaymentStatus.WAITING, age=timedelta(seconds=4))
+        Payment.objects.filter(pk=widget_payment.pk).update(variant="card-widget")
+
+        response = self.client.get(self._create_payment_url(self._order()))
+
+        self.assertEqual(Payment.objects.count(), 2)
+        new_payment = Payment.objects.get(variant="default")
+        self.assertRedirects(
+            response,
+            reverse("payment_details", kwargs={"payment_id": new_payment.id}),
+            fetch_redirect_response=False,
+        )
+
+    def test_decline_of_another_variant_does_not_delay_a_switch(self):
+        # "Your card was declined - try PayPal instead" must work right away;
+        # the cooldown protects against hammering the same provider.
+        declined = self._existing_payment(self._order(), PaymentStatus.REJECTED, age=timedelta(seconds=20))
+        Payment.objects.filter(pk=declined.pk).update(variant="card-widget")
+
+        response = self.client.get(self._create_payment_url(self._order()))
+
+        self.assertEqual(Payment.objects.count(), 2)
+        new_payment = Payment.objects.get(variant="default")
+        self.assertRedirects(
+            response,
+            reverse("payment_details", kwargs={"payment_id": new_payment.id}),
+            fetch_redirect_response=False,
+        )
+
     @override_settings(PLANS_PAYMENTS_JOIN_IN_FLIGHT_SECONDS=0)
     def test_join_guard_can_be_disabled(self):
         self._existing_payment(self._order(), PaymentStatus.WAITING, age=timedelta(seconds=30))
