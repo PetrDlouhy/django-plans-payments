@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
-from django.db import models
+from django.db import models, transaction
 from django.dispatch.dispatcher import receiver
 from django.urls import reverse
 from payments import PaymentStatus, PurchasedItem, RedirectNeeded
@@ -58,8 +58,8 @@ class Payment(BasePayment):
                 except KeyError:
                     transaction_fee_missing = self.transaction_fee == 0
                 else:
-                    for transaction in transactions:
-                        related_resources = transaction["related_resources"]
+                    for paypal_transaction in transactions:
+                        related_resources = paypal_transaction["related_resources"]
                         if len(related_resources) == 1:
                             sale = related_resources[0]["sale"]
                             if "transaction_fee" in sale:
@@ -248,7 +248,12 @@ def change_payment_status(sender, *args, **kwargs):
         if hasattr(order.user.userplan, "recurring"):
             order.user.userplan.recurring.token_verified = True
             order.user.userplan.recurring.save()
-        order.complete_order()
+        if getattr(settings, "PLANS_PAYMENTS_COMPLETE_ORDER_AFTER_COMMIT", False):
+            # The provider may already hold the money (a captured PayPal checkout):
+            # commit the confirmed Payment before anything that can fail rolls it back.
+            transaction.on_commit(order.complete_order)
+        else:
+            order.complete_order()
     if (
         getattr(settings, "PLANS_PAYMENTS_RETURN_ORDER_WHEN_PAYMENT_REFUNDED", False)
         and payment.status == PaymentStatus.REFUNDED
