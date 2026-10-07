@@ -14,7 +14,8 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from unittest import mock
 
-from django.test import TestCase, override_settings
+from django.db import transaction
+from django.test import TestCase, TransactionTestCase, override_settings
 from freezegun import freeze_time
 from model_bakery import baker
 from payments import PaymentStatus
@@ -1014,3 +1015,45 @@ class RenewDataTests(TestCase):
         payment = self._payment_with_recurring()
         with self.assertRaises(ValueError):
             payment.set_renew_token("tok_new", renewal_triggered_by="nonsense")
+
+
+@override_settings(PLANS_PAYMENTS_COMPLETE_ORDER_AFTER_COMMIT=True)
+class CompleteOrderAfterCommitTests(TestCase):
+    def test_confirmed_payment_completes_the_order_after_commit(self):
+        p = models.Payment(
+            order=baker.make("Order", status=Order.STATUS.NEW),
+            status=PaymentStatus.CONFIRMED,
+        )
+        baker.make("UserPlan", user=p.order.user)
+        with self.captureOnCommitCallbacks(execute=True) as callbacks:
+            models.change_payment_status("sender", instance=p)
+            self.assertEqual(p.order.status, Order.STATUS.NEW)
+        self.assertEqual(len(callbacks), 1)
+        p.order.refresh_from_db()
+        self.assertEqual(p.order.status, Order.STATUS.COMPLETED)
+
+
+@override_settings(PLANS_PAYMENTS_COMPLETE_ORDER_AFTER_COMMIT=True)
+class CompleteOrderFailureAfterCommitTests(TransactionTestCase):
+    def test_failing_order_completion_keeps_the_confirmed_payment(self):
+        """A captured payment survives a failing complete_order(), and the
+        provider's retry of the confirmation completes the order.
+        """
+        order = baker.make("Order", status=Order.STATUS.NEW)
+        baker.make("UserPlan", user=order.user)
+        payment = models.Payment.objects.create(order=order, variant="default", total=Decimal("10.90"))
+
+        with mock.patch.object(Order, "complete_order", side_effect=RuntimeError("lock timeout")):
+            with self.assertRaisesMessage(RuntimeError, "lock timeout"):
+                with transaction.atomic():
+                    payment.change_status(PaymentStatus.CONFIRMED)
+
+        payment.refresh_from_db()
+        order.refresh_from_db()
+        self.assertEqual(payment.status, PaymentStatus.CONFIRMED)
+        self.assertEqual(order.status, Order.STATUS.NEW)
+
+        with transaction.atomic():
+            payment.change_status(PaymentStatus.CONFIRMED)
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.STATUS.COMPLETED)

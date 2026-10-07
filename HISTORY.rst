@@ -3,6 +3,14 @@
 History
 -------
 
+Unreleased
+++++++++++
+* ``PLANS_PAYMENTS_COMPLETE_ORDER_AFTER_COMMIT`` (default ``False``) completes
+  the order after the confirmed payment commits instead of inside the same
+  transaction. A failing ``complete_order()`` no longer rolls back the
+  confirmation of a payment the provider has already captured (a PayPal
+  checkout left the buyer charged with the payment still ``waiting``).
+
 2.3.2 (2026-09-15)
 ++++++++++++++++++
 * ``CreatePaymentView``'s in-flight join and decline cooldown consider only
