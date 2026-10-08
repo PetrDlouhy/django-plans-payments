@@ -245,9 +245,16 @@ def change_payment_status(sender, *args, **kwargs):
     payment = kwargs["instance"]
     order = payment.order
     if payment.status == PaymentStatus.CONFIRMED:
-        if hasattr(order.user.userplan, "recurring"):
-            order.user.userplan.recurring.token_verified = True
-            order.user.userplan.recurring.save()
+        userplan = order.user.userplan
+        if hasattr(userplan, "recurring"):
+            if userplan.recurring.payment_provider != payment.variant:
+                # Paid with another provider: stop the old renewals. Only now, not
+                # when the payment was created - a buyer who tried another method
+                # and gave up kept losing a working subscription.
+                userplan.recurring.delete()
+            else:
+                userplan.recurring.token_verified = True
+                userplan.recurring.save()
         if getattr(settings, "PLANS_PAYMENTS_COMPLETE_ORDER_AFTER_COMMIT", False):
             # The provider may already hold the money (a captured PayPal checkout):
             # commit the confirmed Payment before anything that can fail rolls it back.

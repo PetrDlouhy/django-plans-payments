@@ -44,8 +44,6 @@ def get_client_ip(request):
 
 def create_payment_object(payment_variant, order, request=None, autorenewed_payment=False):
     Payment = get_payment_model()
-    if hasattr(order.user.userplan, "recurring") and order.user.userplan.recurring.payment_provider != payment_variant:
-        order.user.userplan.recurring.delete()
     # BillingInfo is an optional reverse one-to-one; a user can reach
     # checkout without one, and the payment provider collects the address
     # anyway -- so missing billing info must not crash payment creation.
