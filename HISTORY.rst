@@ -3,8 +3,8 @@
 History
 -------
 
-Unreleased
-++++++++++
+2.4.0 (2026-10-08)
+++++++++++++++++++
 * A failed payment cancels its order based on the stored order row, locked,
   and writes only ``status``. It used the order in memory, which can be
   stale, and saved it whole, so an order completed meanwhile became
