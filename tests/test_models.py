@@ -522,9 +522,10 @@ class TestPlansPayments(TestCase):
         p = models.Payment(
             order=baker.make("Order", status=Order.STATUS.NEW),
             status=PaymentStatus.CONFIRMED,
+            variant="default",
         )
         userplan = baker.make("UserPlan", user=p.order.user)
-        recurring_user_plan = baker.make("RecurringUserPlan", user_plan=userplan)
+        recurring_user_plan = baker.make("RecurringUserPlan", user_plan=userplan, payment_provider="default")
         models.change_payment_status("sender", instance=p)
         self.assertEqual(p.status, "confirmed")
         self.assertEqual(recurring_user_plan.token_verified, True)
@@ -1084,3 +1085,29 @@ class CancelOrderFromStoredRowTests(TestCase):
         order.refresh_from_db()
         self.assertEqual(order.status, Order.STATUS.CANCELED)
         self.assertEqual(order.amount, Decimal("12.00"))
+
+
+class ForeignRecurringOnConfirmationTests(TestCase):
+    def make_payment(self, status, provider):
+        order = baker.make("Order", status=Order.STATUS.NEW)
+        userplan = baker.make("UserPlan", user=order.user)
+        baker.make("RecurringUserPlan", user_plan=userplan, payment_provider=provider)
+        return models.Payment(order=order, variant="default", status=status), userplan
+
+    def test_confirmed_payment_with_another_provider_stops_the_old_renewals(self):
+        payment, userplan = self.make_payment(PaymentStatus.CONFIRMED, "other-variant")
+        models.change_payment_status("sender", instance=payment)
+        self.assertFalse(RecurringUserPlan.objects.filter(user_plan=userplan).exists())
+
+    def test_confirmed_payment_with_the_same_provider_verifies_the_token(self):
+        payment, userplan = self.make_payment(PaymentStatus.CONFIRMED, "default")
+        models.change_payment_status("sender", instance=payment)
+        self.assertTrue(RecurringUserPlan.objects.get(user_plan=userplan).token_verified)
+
+    def test_failed_payment_with_another_provider_keeps_the_subscription(self):
+        payment, userplan = self.make_payment(PaymentStatus.REJECTED, "other-variant")
+        models.change_payment_status("sender", instance=payment)
+        self.assertEqual(
+            RecurringUserPlan.objects.get(user_plan=userplan).payment_provider,
+            "other-variant",
+        )

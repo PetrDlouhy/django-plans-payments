@@ -262,8 +262,8 @@ class CreatePaymentObjectTests(TestCase):
         self.assertEqual(payment.billing_postcode, "")
         self.assertEqual(payment.billing_country_code, "")
 
-    def test_create_payment_object_deletes_foreign_recurring(self):
-        """A recurring plan from another provider is dropped on new payment."""
+    def test_create_payment_object_keeps_foreign_recurring(self):
+        """Starting a payment with another provider keeps the current subscription."""
         user = baker.make("User")
         userplan = baker.make("UserPlan", user=user)
         baker.make(
@@ -276,7 +276,7 @@ class CreatePaymentObjectTests(TestCase):
         payment = create_payment_object("default", order)
         self.assertEqual(payment.variant, "default")
         userplan.refresh_from_db()
-        self.assertFalse(hasattr(userplan, "recurring"))
+        self.assertEqual(userplan.recurring.payment_provider, "other-variant")
 
 
 class AdminSmokeTests(TestCase):

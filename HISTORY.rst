@@ -9,6 +9,10 @@ Unreleased
   and writes only ``status``. It used the order in memory, which can be
   stale, and saved it whole, so an order completed meanwhile became
   ``CANCELED`` and lost its completion date.
+* A subscription with another payment provider is removed when the new
+  payment is confirmed, not when it is created. ``create_payment_object``
+  deleted it as soon as a payment with another method was started, so a buyer
+  who tried another method and gave up lost a working subscription.
 * Tested on Django 4.2-6.1 with Python 3.10-3.14, each Django version on the
   Python versions it supports (added Django 6.0/6.1 and Python 3.14). The
   tests run against the django-payments fork commit BlenderKit runs in
