@@ -1057,3 +1057,30 @@ class CompleteOrderFailureAfterCommitTests(TransactionTestCase):
             payment.change_status(PaymentStatus.CONFIRMED)
         order.refresh_from_db()
         self.assertEqual(order.status, Order.STATUS.COMPLETED)
+
+
+class CancelOrderFromStoredRowTests(TestCase):
+    def test_a_failed_payment_does_not_cancel_an_order_completed_meanwhile(self):
+        order = baker.make("Order", status=Order.STATUS.NEW)
+        baker.make("UserPlan", user=order.user)
+        payment = models.Payment(order=order, variant="default", status=PaymentStatus.REJECTED)
+        completed_at = datetime(2026, 7, 27, 10, 0, tzinfo=timezone.utc)
+        Order.objects.filter(pk=order.pk).update(status=Order.STATUS.COMPLETED, completed=completed_at)
+
+        models.change_payment_status("sender", instance=payment)
+
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.STATUS.COMPLETED)
+        self.assertEqual(order.completed, completed_at)
+
+    def test_a_failed_payment_cancels_only_the_status(self):
+        order = baker.make("Order", status=Order.STATUS.NEW, amount=Decimal("10.00"))
+        baker.make("UserPlan", user=order.user)
+        payment = models.Payment(order=order, variant="default", status=PaymentStatus.REJECTED)
+        Order.objects.filter(pk=order.pk).update(amount=Decimal("12.00"))
+
+        models.change_payment_status("sender", instance=payment)
+
+        order.refresh_from_db()
+        self.assertEqual(order.status, Order.STATUS.CANCELED)
+        self.assertEqual(order.amount, Decimal("12.00"))

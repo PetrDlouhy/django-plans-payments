@@ -5,6 +5,10 @@ History
 
 Unreleased
 ++++++++++
+* A failed payment cancels its order based on the stored order row, locked,
+  and writes only ``status``. It used the order in memory, which can be
+  stale, and saved it whole, so an order completed meanwhile became
+  ``CANCELED`` and lost its completion date.
 * Tested on Django 4.2-6.1 with Python 3.10-3.14, each Django version on the
   Python versions it supports (added Django 6.0/6.1 and Python 3.14). The
   tests run against the django-payments fork commit BlenderKit runs in

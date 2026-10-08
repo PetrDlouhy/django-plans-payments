@@ -260,15 +260,21 @@ def change_payment_status(sender, *args, **kwargs):
     ):
         order._change_reason = f"Django-plans-payments: Payment status changed to {payment.status}"
         order.return_order()
-    elif order.status != Order.STATUS.COMPLETED and payment.status not in (
+    elif payment.status not in (
         PaymentStatus.CONFIRMED,
         PaymentStatus.WAITING,
         PaymentStatus.INPUT,
     ):
-        order.status = Order.STATUS.CANCELED
-        # In case django-simples-history is installed
-        order._change_reason = f"Django-plans-payments: Payment status changed to {payment.status}"
-        order.save()
+        # Decide on the stored row, locked, and write only the status: the
+        # order in memory can be stale, and saving it whole turned a
+        # concurrently completed order into CANCELED and erased its completion.
+        with transaction.atomic():
+            stored = type(order).objects.select_for_update().get(pk=order.pk)
+            if stored.status != Order.STATUS.COMPLETED:
+                stored.status = order.status = Order.STATUS.CANCELED
+                # In case django-simples-history is installed
+                stored._change_reason = f"Django-plans-payments: Payment status changed to {payment.status}"
+                stored.save(update_fields=["status"])
         # Maybe we would like to re-enable this for payments statuses that will not be ever renewed
         # (like "SAC - Account closed (do not try again)" on PayU)
         # if hasattr(order.user.userplan, "recurring"):
