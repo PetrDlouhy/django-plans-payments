@@ -5,6 +5,10 @@ History
 
 Unreleased
 ++++++++++
+* Tested on Django 4.2-6.1 with Python 3.10-3.14, each Django version on the
+  Python versions it supports (added Django 6.0/6.1 and Python 3.14). The
+  tests run against the django-payments fork commit BlenderKit runs in
+  production instead of the work-in-progress ``model-payu`` branch.
 * ``PLANS_PAYMENTS_COMPLETE_ORDER_AFTER_COMMIT`` (default ``False``) completes
   the order after the confirmed payment commits instead of inside the same
   transaction. A failing ``complete_order()`` no longer rolls back the
