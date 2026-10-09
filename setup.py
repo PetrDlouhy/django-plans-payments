@@ -56,6 +56,7 @@ setup(
     version=version,
     description="""Integration between django-plans and django-payments.""",
     long_description=readme + "\n\n" + history,
+    long_description_content_type="text/x-rst",
     author="Petr Dlouhý",
     author_email="petr.dlouhy@email.cz",
     url="https://github.com/PetrDlouhy/django-plans-payments",
