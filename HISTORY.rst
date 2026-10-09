@@ -5,6 +5,13 @@ History
 
 Unreleased
 ++++++++++
+* System check ``plans_payments.W001`` warns when the installed
+  django-payments has no ``Payment.autocomplete_with_wallet()``. Released
+  django-payments lacks it, so automatic renewals failed with an
+  ``AttributeError`` on the day they were due.
+* An automatic renewal that needs 3-D Secure is logged instead of printed to
+  stdout, without the member's payment link.
+* The package's long description is declared as reStructuredText.
 * A confirmed payment never removes the subscription. 2.4.0 removed it when
   the payment's variant differed from the subscription's provider, so a
   subscriber who bought a one-off period or an upgrade with another payment
