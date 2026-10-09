@@ -5,10 +5,14 @@ History
 
 Unreleased
 ++++++++++
-* A confirmed plan-change order (an order without a pricing) never removes
-  the subscription, even when it was paid with another variant. 2.4.0 removed
-  it, so a card subscriber who paid an upgrade difference with a one-off
-  payment lost the renewal that the plan change had just re-armed.
+* A confirmed payment never removes the subscription. 2.4.0 removed it when
+  the payment's variant differed from the subscription's provider, so a
+  subscriber who bought a one-off period or an upgrade with another payment
+  method (a ``payu`` card payment against a ``payu-recurring`` subscription,
+  a PayPal one-off) lost the renewal. The subscription now changes only when
+  a confirmed payment stores a new renew token. A payment with another
+  variant also no longer marks the stored token verified, since it did not
+  use it.
 * ``Payment.replace_renew_token`` (and the matching ``create_payment_object``
   argument) lets a payment collect new payment details for an existing
   subscription. ``get_renew_token()`` and ``get_renew_data()`` return

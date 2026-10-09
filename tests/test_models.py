@@ -1106,16 +1106,22 @@ class CancelOrderFromStoredRowTests(TestCase):
 
 
 class ForeignRecurringOnConfirmationTests(TestCase):
-    def make_payment(self, status, provider):
-        order = baker.make("Order", status=Order.STATUS.NEW, pricing=baker.make("Pricing"))
+    def make_payment(self, status, provider, pricing=True):
+        order = baker.make("Order", status=Order.STATUS.NEW, pricing=baker.make("Pricing") if pricing else None)
         userplan = baker.make("UserPlan", user=order.user)
-        baker.make("RecurringUserPlan", user_plan=userplan, payment_provider=provider)
+        baker.make("RecurringUserPlan", user_plan=userplan, payment_provider=provider, token_verified=False)
         return models.Payment(order=order, variant="default", status=status), userplan
 
-    def test_confirmed_payment_with_another_provider_stops_the_old_renewals(self):
-        payment, userplan = self.make_payment(PaymentStatus.CONFIRMED, "other-variant")
-        models.change_payment_status("sender", instance=payment)
-        self.assertFalse(RecurringUserPlan.objects.filter(user_plan=userplan).exists())
+    def test_confirmed_purchase_with_another_variant_keeps_the_subscription(self):
+        """A one-off purchase (a period, an add-on) paid another way must not end the subscription."""
+        for pricing in (True, False):
+            with self.subTest(plan_change=not pricing):
+                payment, userplan = self.make_payment(PaymentStatus.CONFIRMED, "other-variant", pricing)
+                models.change_payment_status("sender", instance=payment)
+                recurring = RecurringUserPlan.objects.get(user_plan=userplan)
+                self.assertEqual(recurring.payment_provider, "other-variant")
+                # The payment did not use the stored token, so it proves nothing about it.
+                self.assertFalse(recurring.token_verified)
 
     def test_confirmed_payment_with_the_same_provider_verifies_the_token(self):
         payment, userplan = self.make_payment(PaymentStatus.CONFIRMED, "default")

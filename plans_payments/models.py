@@ -289,17 +289,12 @@ def change_payment_status(sender, *args, **kwargs):
         if payment.new_renew_token:
             payment.store_renew_token(**payment.new_renew_token)
         userplan = order.user.userplan
-        if hasattr(userplan, "recurring"):
-            # A plan-change order (no pricing) changes the plan, not how the
-            # account renews, so it never stops the subscription.
-            if order.pricing_id is not None and userplan.recurring.payment_provider != payment.variant:
-                # Paid with another provider: stop the old renewals. Only now, not
-                # when the payment was created - a buyer who tried another method
-                # and gave up kept losing a working subscription.
-                userplan.recurring.delete()
-            else:
-                userplan.recurring.token_verified = True
-                userplan.recurring.save()
+        # A payment never ends the subscription: buying something else (a one-off
+        # period, an upgrade) with another payment method must keep it renewing.
+        # It only changes when a new renew token is stored above.
+        if hasattr(userplan, "recurring") and userplan.recurring.payment_provider == payment.variant:
+            userplan.recurring.token_verified = True
+            userplan.recurring.save()
         if getattr(settings, "PLANS_PAYMENTS_COMPLETE_ORDER_AFTER_COMMIT", False):
             # The provider may already hold the money (a captured PayPal checkout):
             # commit the confirmed Payment before anything that can fail rolls it back.
