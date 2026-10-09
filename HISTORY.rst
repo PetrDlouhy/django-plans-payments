@@ -9,6 +9,17 @@ Unreleased
   the subscription, even when it was paid with another variant. 2.4.0 removed
   it, so a card subscriber who paid an upgrade difference with a one-off
   payment lost the renewal that the plan change had just re-armed.
+* ``Payment.replace_renew_token`` (and the matching ``create_payment_object``
+  argument) lets a payment collect new payment details for an existing
+  subscription. ``get_renew_token()`` and ``get_renew_data()`` return
+  ``None`` for it, so the provider asks for a card (with 3-D Secure) instead
+  of charging the stored token, and the token it receives is kept in
+  ``Payment.new_renew_token`` and written to the subscription only when the
+  payment is confirmed. Before, a member whose stored card kept failing
+  could only retry that card, and a declined new card would have replaced
+  the stored one, leaving the subscription without a usable token. Both
+  columns are nullable, so code without them can still insert payments
+  during a deploy.
 
 2.4.0 (2026-10-08)
 ++++++++++++++++++

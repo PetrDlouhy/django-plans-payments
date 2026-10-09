@@ -193,6 +193,19 @@ class TestPlansPayments(TestCase):
         )
         self.assertEqual(p.get_renew_token(), "token")
 
+    def test_get_renew_token_replaced(self):
+        user = baker.make("User")
+        p = models.Payment(order=baker.make("Order", user=user), variant="default", replace_renew_token=True)
+        userplan = baker.make("UserPlan", user=user, order__user=user)
+        baker.make(
+            "RecurringUserPlan",
+            user_plan=userplan,
+            token_verified=True,
+            token="token",
+            payment_provider="default",
+        )
+        self.assertIsNone(p.get_renew_token())
+
     def test_invalidate_renew_token(self):
         """A permanent provider token error marks the token unverified.
 
@@ -956,6 +969,11 @@ class RenewDataTests(TestCase):
         payment = self._payment_with_recurring(provider="other-variant")
         self.assertIsNone(payment.get_renew_data())
 
+    def test_get_renew_data_none_when_replaced(self):
+        payment = self._payment_with_recurring()
+        payment.replace_renew_token = True
+        self.assertIsNone(payment.get_renew_data())
+
     def test_get_renew_data_none_without_recurring(self):
         user = baker.make("User")
         baker.make("UserPlan", user=user)
@@ -1126,3 +1144,74 @@ class PlanChangeKeepsSubscriptionTests(TestCase):
             RecurringUserPlan.objects.get(user_plan=userplan).payment_provider,
             "payu-recurring",
         )
+
+
+class ReplaceRenewTokenTests(TestCase):
+    """A payment that replaces the renew token keeps the stored one until it is confirmed."""
+
+    def make_payment(self, provider="default", status=PaymentStatus.WAITING):
+        order = baker.make("Order", status=Order.STATUS.NEW, pricing=baker.make("Pricing"))
+        userplan = baker.make("UserPlan", user=order.user)
+        baker.make(
+            "RecurringUserPlan",
+            user_plan=userplan,
+            payment_provider=provider,
+            token="old-token",
+            token_verified=True,
+            renewal_triggered_by=RecurringUserPlan.RENEWAL_TRIGGERED_BY.TASK,
+        )
+        payment = baker.make(
+            models.Payment,
+            order=order,
+            variant="default",
+            status=status,
+            replace_renew_token=True,
+        )
+        return payment, userplan
+
+    def receive_new_token(self, payment):
+        payment.set_renew_token(
+            "new-token",
+            card_expire_year=2030,
+            card_expire_month=4,
+            card_masked_number="4444********1111",
+            renewal_triggered_by="task",
+        )
+
+    def test_received_token_waits_for_confirmation(self):
+        payment, userplan = self.make_payment()
+        self.receive_new_token(payment)
+        recurring = RecurringUserPlan.objects.get(user_plan=userplan)
+        self.assertEqual((recurring.token, recurring.token_verified), ("old-token", True))
+        payment.refresh_from_db()
+        self.assertEqual(payment.new_renew_token["token"], "new-token")
+
+    def test_confirmation_stores_the_new_token(self):
+        payment, userplan = self.make_payment()
+        self.receive_new_token(payment)
+        payment.status = PaymentStatus.CONFIRMED
+        models.change_payment_status("sender", instance=payment)
+        recurring = RecurringUserPlan.objects.get(user_plan=userplan)
+        self.assertEqual(
+            (recurring.token, recurring.token_verified, recurring.card_masked_number),
+            ("new-token", True, "4444********1111"),
+        )
+
+    def test_confirmation_replaces_another_providers_renewal(self):
+        payment, userplan = self.make_payment(provider="other-variant")
+        self.receive_new_token(payment)
+        payment.status = PaymentStatus.CONFIRMED
+        models.change_payment_status("sender", instance=payment)
+        recurring = RecurringUserPlan.objects.get(user_plan=userplan)
+        self.assertEqual(
+            (recurring.payment_provider, recurring.token, recurring.token_verified),
+            ("default", "new-token", True),
+        )
+
+    def test_rejection_keeps_the_stored_token(self):
+        payment, userplan = self.make_payment()
+        self.receive_new_token(payment)
+        payment.status = PaymentStatus.REJECTED
+        models.change_payment_status("sender", instance=payment)
+        recurring = RecurringUserPlan.objects.get(user_plan=userplan)
+        self.assertEqual((recurring.token, recurring.token_verified), ("old-token", True))

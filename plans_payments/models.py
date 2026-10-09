@@ -37,6 +37,18 @@ class Payment(BasePayment):
     autorenewed_payment: models.BooleanField = models.BooleanField(
         default=False,
     )
+    # Nullable so that code which predates the column can still insert payments
+    # while a new version is being deployed next to it.
+    replace_renew_token: models.BooleanField = models.BooleanField(
+        default=False,
+        null=True,
+        help_text="Collect new payment details instead of the stored renew token; replace it once confirmed.",
+    )
+    new_renew_token: models.JSONField = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Renew token received by a payment that replaces it, stored on confirmation.",
+    )
 
     class Meta:
         indexes = [
@@ -95,6 +107,8 @@ class Payment(BasePayment):
         Get the recurring payments renew token for user of this payment
         Used by PayU provider for now
         """
+        if self.replace_renew_token:
+            return None
         try:
             recurring_plan = self.order.user.userplan.recurring
             if recurring_plan.token_verified and self.variant == recurring_plan.payment_provider:
@@ -134,8 +148,10 @@ class Payment(BasePayment):
 
         Returns:
             dict: Contains 'token' and any provider-specific keys from extra_data
-            None: If wallet is not verified or doesn't exist
+            None: If wallet is not verified or doesn't exist, or the payment replaces it
         """
+        if self.replace_renew_token:
+            return None
         try:
             recurring_plan = self.order.user.userplan.recurring
             if not (recurring_plan.token_verified and self.variant == recurring_plan.payment_provider):
@@ -167,7 +183,32 @@ class Payment(BasePayment):
         """
         Store the recurring payments renew token for user of this payment
         The renew token is string defined by the provider
+
+        A payment that replaces the renew token holds the new one until it is
+        confirmed: providers send it before the payment is authorized, and a
+        declined replacement must leave the stored token working.
         """
+        if self.replace_renew_token:
+            self.new_renew_token = {
+                "token": token,
+                "card_expire_year": card_expire_year,
+                "card_expire_month": card_expire_month,
+                "card_masked_number": card_masked_number,
+                **kwargs,
+            }
+            self.save(update_fields=["new_renew_token"])
+            return
+        self.store_renew_token(token, card_expire_year, card_expire_month, card_masked_number, **kwargs)
+
+    def store_renew_token(
+        self,
+        token,
+        card_expire_year=None,
+        card_expire_month=None,
+        card_masked_number=None,
+        **kwargs,
+    ):
+        """Write the renew token to the user's RecurringUserPlan."""
         # Extract implementation-specific parameters
         automatic_renewal = kwargs.get("automatic_renewal")
         renewal_triggered_by = kwargs.get("renewal_triggered_by")
@@ -245,6 +286,8 @@ def change_payment_status(sender, *args, **kwargs):
     payment = kwargs["instance"]
     order = payment.order
     if payment.status == PaymentStatus.CONFIRMED:
+        if payment.new_renew_token:
+            payment.store_renew_token(**payment.new_renew_token)
         userplan = order.user.userplan
         if hasattr(userplan, "recurring"):
             # A plan-change order (no pricing) changes the plan, not how the
