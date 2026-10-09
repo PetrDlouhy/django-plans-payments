@@ -42,7 +42,7 @@ def get_client_ip(request):
     return request.META.get("REMOTE_ADDR")
 
 
-def create_payment_object(payment_variant, order, request=None, autorenewed_payment=False):
+def create_payment_object(payment_variant, order, request=None, autorenewed_payment=False, replace_renew_token=False):
     Payment = get_payment_model()
     # BillingInfo is an optional reverse one-to-one; a user can reach
     # checkout without one, and the payment provider collects the address
@@ -67,6 +67,7 @@ def create_payment_object(payment_variant, order, request=None, autorenewed_paym
         # billing_country_area=billing_info.zipcode if billing_info else "",
         customer_ip_address=get_client_ip(request) if request else "127.0.0.1",
         autorenewed_payment=autorenewed_payment,
+        replace_renew_token=replace_renew_token,
     )
 
 
