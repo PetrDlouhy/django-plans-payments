@@ -3,8 +3,8 @@
 History
 -------
 
-Unreleased
-++++++++++
+2.5.0 (2026-10-09)
+++++++++++++++++++
 * System check ``plans_payments.W001`` warns when the installed
   django-payments has no ``Payment.autocomplete_with_wallet()``. Released
   django-payments lacks it, so automatic renewals failed with an
