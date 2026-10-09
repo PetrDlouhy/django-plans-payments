@@ -3,6 +3,13 @@
 History
 -------
 
+Unreleased
+++++++++++
+* A confirmed plan-change order (an order without a pricing) never removes
+  the subscription, even when it was paid with another variant. 2.4.0 removed
+  it, so a card subscriber who paid an upgrade difference with a one-off
+  payment lost the renewal that the plan change had just re-armed.
+
 2.4.0 (2026-10-08)
 ++++++++++++++++++
 * A failed payment cancels its order based on the stored order row, locked,

@@ -247,7 +247,9 @@ def change_payment_status(sender, *args, **kwargs):
     if payment.status == PaymentStatus.CONFIRMED:
         userplan = order.user.userplan
         if hasattr(userplan, "recurring"):
-            if userplan.recurring.payment_provider != payment.variant:
+            # A plan-change order (no pricing) changes the plan, not how the
+            # account renews, so it never stops the subscription.
+            if order.pricing_id is not None and userplan.recurring.payment_provider != payment.variant:
                 # Paid with another provider: stop the old renewals. Only now, not
                 # when the payment was created - a buyer who tried another method
                 # and gave up kept losing a working subscription.
