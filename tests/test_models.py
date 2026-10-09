@@ -8,6 +8,8 @@ test_django-plans-payments
 Tests for `django-plans-payments` models module.
 """
 
+import contextlib
+import io
 import json
 import warnings
 from datetime import datetime, timezone
@@ -916,10 +918,16 @@ class TestPlansPayments(TestCase):
             mock_create.return_value = mock_payment
 
             # Should not raise, should handle RedirectNeeded gracefully
-            models.renew_accounts("sender", user, p)
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout), self.assertLogs("plans_payments.models", level="INFO") as logs:
+                models.renew_accounts("sender", user, p)
 
             # Verify autocomplete_with_wallet was called
             mock_payment.autocomplete_with_wallet.assert_called_once()
+            # Logged, not printed, and without the member's payment link
+            self.assertEqual(stdout.getvalue(), "")
+            self.assertIn(f"Automatic renewal of user {user.pk} needs 3-D Secure", "\n".join(logs.output))
+            self.assertNotIn("https://example.com/3ds", "\n".join(logs.output))
 
     def test_change_payment_status_called(self):
         """test that change_payment_status receiver is executed when Payment.change_status is called

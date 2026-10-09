@@ -357,7 +357,10 @@ def renew_accounts(sender, user, *args, **kwargs):
         try:
             payment.autocomplete_with_wallet()
         except RedirectNeeded as redirect_to:
-            print("CVV2/3DS code is required, enter it at %s" % str(redirect_to))
+            logger.info(
+                "Automatic renewal of user %s needs 3-D Secure; the payment link is e-mailed to the member",
+                user.pk,
+            )
             send_template_email(
                 [payment.order.user.email],
                 "mail/renew_cvv_3ds_title.txt",
