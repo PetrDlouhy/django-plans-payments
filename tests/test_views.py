@@ -278,6 +278,16 @@ class CreatePaymentObjectTests(TestCase):
         userplan.refresh_from_db()
         self.assertEqual(userplan.recurring.payment_provider, "other-variant")
 
+    def test_create_payment_object_replacing_the_renew_token(self):
+        user = baker.make("User")
+        baker.make("UserPlan", user=user)
+        order = baker.make("Order", user=user, amount=10, tax=0, currency="EUR")
+
+        payment = create_payment_object("default", order, replace_renew_token=True)
+
+        payment.refresh_from_db()
+        self.assertTrue(payment.replace_renew_token)
+
 
 class AdminSmokeTests(TestCase):
     def test_payment_admin_instantiates(self):
