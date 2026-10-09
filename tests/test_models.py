@@ -1089,7 +1089,7 @@ class CancelOrderFromStoredRowTests(TestCase):
 
 class ForeignRecurringOnConfirmationTests(TestCase):
     def make_payment(self, status, provider):
-        order = baker.make("Order", status=Order.STATUS.NEW)
+        order = baker.make("Order", status=Order.STATUS.NEW, pricing=baker.make("Pricing"))
         userplan = baker.make("UserPlan", user=order.user)
         baker.make("RecurringUserPlan", user_plan=userplan, payment_provider=provider)
         return models.Payment(order=order, variant="default", status=status), userplan
@@ -1110,4 +1110,19 @@ class ForeignRecurringOnConfirmationTests(TestCase):
         self.assertEqual(
             RecurringUserPlan.objects.get(user_plan=userplan).payment_provider,
             "other-variant",
+        )
+
+
+class PlanChangeKeepsSubscriptionTests(TestCase):
+    def test_a_confirmed_plan_change_with_another_variant_keeps_the_subscription(self):
+        order = baker.make("Order", status=Order.STATUS.NEW, pricing=None)
+        userplan = baker.make("UserPlan", user=order.user)
+        baker.make("RecurringUserPlan", user_plan=userplan, payment_provider="payu-recurring")
+        payment = models.Payment(order=order, variant="payu", status=PaymentStatus.CONFIRMED)
+
+        models.change_payment_status("sender", instance=payment)
+
+        self.assertEqual(
+            RecurringUserPlan.objects.get(user_plan=userplan).payment_provider,
+            "payu-recurring",
         )
